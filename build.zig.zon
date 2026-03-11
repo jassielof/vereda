@@ -1,7 +1,7 @@
 .{
     .name = .vereda,
     .version = "0.0.0",
-    .fingerprint = 0x8205df1be9995f06,
+    .fingerprint = 0x896529f3ba7b0dd7,
     .minimum_zig_version = "0.15.2",
     .paths = .{
         "build.zig",

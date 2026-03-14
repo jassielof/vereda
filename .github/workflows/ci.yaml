@@ -26,7 +26,7 @@ jobs:
         run: zig fmt .
 
       - name: Build
-        run: zig build --summary all -Doptimize=ReleaseSafe
+        run: zig build --summary all
 
       - name: Build docs
         run: zig build --summary all docs
@@ -48,14 +48,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          submodules: true
 
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
 
       - name: Tests
-        run: zig build --summary all tests -Doptimize=ReleaseSafe
+        run: zig build --summary all tests
 
   pages:
     environment:

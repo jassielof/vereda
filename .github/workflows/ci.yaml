@@ -37,7 +37,6 @@ jobs:
           path: zig-out/docs
   tests:
     strategy:
-      fail-fast: true
       matrix:
         os:
           - ubuntu-latest

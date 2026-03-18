@@ -1,3 +1,3 @@
 # Vereda
 
-Zig library for path manipulation and utilities.
+Zig utilities library for path and filesystem manipulation.

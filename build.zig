@@ -1,41 +1,41 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
+    const mod_name = "vereda";
+
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // ── Single public module ──────────────────────────────────────────────────
-
-    const lib_mod = b.addModule("vereda", .{
+    const lib_mod = b.addModule(mod_name, .{
         .root_source_file = b.path("src/lib/root.zig"),
         .target = target,
         .optimize = optimize,
     });
 
-    const lib = b.addLibrary(.{
-        .name = "vereda",
+    const docs_lib = b.addLibrary(.{
+        .name = mod_name,
         .root_module = lib_mod,
     });
 
-    // ── Docs ──────────────────────────────────────────────────────────────────
+    const docs_step = b.step("docs", "Generate the documentation");
 
-    const docs_step = b.step("docs", "Generate documentation (zig-out/docs/)");
     const docs = b.addInstallDirectory(.{
-        .source_dir = lib.getEmittedDocs(),
+        .source_dir = docs_lib.getEmittedDocs(),
         .install_dir = .prefix,
         .install_subdir = "docs",
     });
+
     docs_step.dependOn(&docs.step);
 
-    // ── Tests (unit + integration) ────────────────────────────────────────────
-
-    const tests_step = b.step("tests", "Run all tests (unit + integration)");
+    const tests_step = b.step("tests", "Run the test suite");
 
     const unit_tests = b.addTest(.{
-        .name = "unit-tests",
+        .name = "unit tests",
         .root_module = lib_mod,
     });
-    tests_step.dependOn(&b.addRunArtifact(unit_tests).step);
+
+    const run_unit_tests = b.addRunArtifact(unit_tests);
+    tests_step.dependOn(&run_unit_tests.step);
 
     const integration_tests = b.addTest(.{
         .name = "integration-tests",
@@ -44,9 +44,14 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "vereda", .module = lib_mod },
+                .{
+                    .name = "vereda",
+                    .module = lib_mod,
+                },
             },
         }),
     });
-    tests_step.dependOn(&b.addRunArtifact(integration_tests).step);
+
+    const run_integration_tests = b.addRunArtifact(integration_tests);
+    tests_step.dependOn(&run_integration_tests.step);
 }

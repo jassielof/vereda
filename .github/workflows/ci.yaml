@@ -29,12 +29,13 @@ jobs:
         run: zig build --summary all
 
       - name: Build docs
-        run: zig build --summary all docs
+        run: zig build docs --summary all
 
-      - name: Upload artifact
+      - name: Upload docs artifact
         uses: actions/upload-pages-artifact@v4
         with:
           path: zig-out/docs
+
   tests:
     strategy:
       matrix:
@@ -52,7 +53,7 @@ jobs:
         uses: mlugg/setup-zig@v2
 
       - name: Tests
-        run: zig build --summary all tests
+        run: zig build tests --summary all
 
   pages:
     environment:

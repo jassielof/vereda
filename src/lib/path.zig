@@ -531,7 +531,9 @@ pub fn normalize(alloc: Allocator, p: []const u8) ![]u8 {
         if (mem.eql(u8, comp, ".")) {
             // skip
         } else if (mem.eql(u8, comp, "..")) {
-            if (stack.items.len > 0) {
+            // Only pop if the top of the stack is a real component, not another `..`.
+            // For relative paths like `../../foo`, the leading `..` runs must be kept.
+            if (stack.items.len > 0 and !mem.eql(u8, stack.items[stack.items.len - 1], "..")) {
                 _ = stack.pop();
             } else if (!info.absolute) {
                 try stack.append(alloc, comp);

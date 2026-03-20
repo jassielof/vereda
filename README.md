@@ -7,7 +7,8 @@ Zig utilities library for path and filesystem manipulation.
 Vereda includes a filesystem-independent glob engine in src/lib/glob.zig.
 
 Supported syntax:
-- * matches any sequence within one path segment
+
+- - matches any sequence within one path segment
 - ** matches across segment boundaries
 - ? matches one non-separator character
 - [abc], [a-z], [!abc] character classes
@@ -21,8 +22,8 @@ const std = @import("std");
 const vereda = @import("vereda");
 
 test "glob examples" {
-	try std.testing.expect(try vereda.glob.match("src/*.{zig,zon}", "src/main.zig", .{ .style = .posix }));
-	try std.testing.expect(try vereda.glob.match("src/file\\*.txt", "src/file*.txt", .{ .style = .posix }));
+ try std.testing.expect(try vereda.glob.match("src/*.{zig,zon}", "src/main.zig", .{ .style = .posix }));
+ try std.testing.expect(try vereda.glob.match("src/file\\*.txt", "src/file*.txt", .{ .style = .posix }));
 }
 ```
 
@@ -35,21 +36,22 @@ const std = @import("std");
 const vereda = @import("vereda");
 
 test "walk with glob filter" {
-	const alloc = std.testing.allocator;
-	var walker = try vereda.walk.walk(alloc, ".", .{
-		.style = .posix,
-		.pattern = "src/**/{*.zig,*.zon}",
-		.include_dirs = false,
-	});
-	defer walker.deinit();
+ const alloc = std.testing.allocator;
+ var walker = try vereda.walk.walk(alloc, ".", .{
+  .style = .posix,
+  .pattern = "src/**/{*.zig,*.zon}",
+  .include_dirs = false,
+ });
+ defer walker.deinit();
 
-	while (try walker.next()) |entry| {
-		_ = entry;
-	}
+ while (try walker.next()) |entry| {
+  _ = entry;
+ }
 }
 ```
 
 Notes:
+
 - Pattern filtering is applied to relative paths.
 - Walker uses conservative literal-prefix pruning to skip directory branches that cannot match fixed leading path parts.
 - Walker also skips descent entirely when the pattern cannot match nested paths (for example `*.zig`).

@@ -5,5 +5,6 @@
 
 test {
     _ = @import("fs.zig");
+    _ = @import("glob.zig");
     _ = @import("walk.zig");
 }

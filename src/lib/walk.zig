@@ -93,7 +93,9 @@ const Frame = struct {
 pub const Walker = struct {
     allocator: Allocator,
     options: Options,
-    matcher: ?glob_mod.Matcher,
+    matcher: ?glob_mod.Pattern,
+    prune_dir_prefix: ?[]u8 = null,
+    pattern_may_match_nested: bool = true,
     frames: std.ArrayListUnmanaged(Frame) = .empty,
     path_buffer: std.ArrayListUnmanaged(u8) = .empty,
     visited_dirs: std.StringHashMapUnmanaged(void) = .empty,
@@ -104,13 +106,23 @@ pub const Walker = struct {
     /// not close it on `deinit`. Use `initOwned` or the `walk` free function
     /// if you want the walker to take ownership.
     pub fn init(allocator: Allocator, root_dir: std.fs.Dir, options: Options) !Walker {
+        const style = options.style.resolve();
+
         var walker = Walker{
             .allocator = allocator,
             .options = options,
             .matcher = if (options.pattern) |pattern|
-                try glob_mod.Matcher.init(pattern, .{ .style = options.style })
+                try glob_mod.Pattern.compileWithOptions(allocator, pattern, .{ .style = options.style })
             else
                 null,
+            .prune_dir_prefix = if (options.pattern) |pattern|
+                try extractLiteralDirPrefix(allocator, pattern, style)
+            else
+                null,
+            .pattern_may_match_nested = if (options.pattern) |pattern|
+                canPatternMatchNested(pattern, style)
+            else
+                true,
         };
         errdefer walker.deinit();
 
@@ -143,6 +155,15 @@ pub const Walker = struct {
     /// If the walker was created via `walk` (string path), also closes the root dir.
     pub fn deinit(self: *Walker) void {
         const allocator = self.allocator;
+
+        if (self.matcher) |*matcher| {
+            matcher.deinit(allocator);
+        }
+
+        if (self.prune_dir_prefix) |prefix| {
+            allocator.free(prefix);
+        }
+
         for (self.frames.items) |*frame| {
             if (frame.close_on_pop) frame.dir.close();
         }
@@ -226,7 +247,7 @@ pub const Walker = struct {
 
         if (is_dir) {
             if (self.options.extension != null) return false;
-            if (self.matcher) |matcher| return matcher.matches(rel_path);
+            if (self.matcher) |matcher| return matcher.match(rel_path);
             if (self.options.filter) |f| return f(.{
                 .dir = undefined,
                 .basename = base_name,
@@ -243,7 +264,7 @@ pub const Walker = struct {
         }
 
         if (self.matcher) |matcher| {
-            if (!matcher.matches(rel_path)) return false;
+            if (!matcher.match(rel_path)) return false;
         }
 
         return true;
@@ -257,12 +278,24 @@ pub const Walker = struct {
         rel_path: []const u8,
         depth: usize,
     ) !void {
+        const style = self.options.style.resolve();
+
         const should_open = switch (kind) {
             .directory => true,
             .sym_link => self.options.follow_symlinks,
             else => false,
         };
         if (!should_open) return;
+
+        if (self.matcher != null and !self.pattern_may_match_nested) {
+            return;
+        }
+
+        if (self.prune_dir_prefix) |prefix| {
+            if (!pathPrefixCompatible(rel_path, prefix, style)) {
+                return;
+            }
+        }
 
         var child_dir = parent_dir.openDir(name, .{ .iterate = true }) catch |err| switch (err) {
             error.NotDir, error.FileNotFound => return,
@@ -318,6 +351,75 @@ fn shouldDescend(options: Options, depth: usize, kind: std.fs.Dir.Entry.Kind) bo
     if (kind != .directory and !(kind == .sym_link and options.follow_symlinks)) return false;
     if (options.max_depth) |max_depth| return depth < max_depth;
     return true;
+}
+
+fn extractLiteralDirPrefix(allocator: Allocator, pattern: []const u8, style: path.Style) Allocator.Error!?[]u8 {
+    if (pattern.len == 0) return null;
+
+    var literal_end: usize = pattern.len;
+    var i: usize = 0;
+    while (i < pattern.len) : (i += 1) {
+        if (pattern[i] == '\\' and i + 1 < pattern.len) {
+            i += 1;
+            continue;
+        }
+
+        switch (pattern[i]) {
+            '*', '?', '[', '{' => {
+                literal_end = i;
+                break;
+            },
+            else => {},
+        }
+    }
+
+    if (literal_end == 0) return null;
+
+    var last_sep: ?usize = null;
+    for (pattern[0..literal_end], 0..) |ch, idx| {
+        if (style.isSep(ch)) last_sep = idx;
+    }
+
+    if (last_sep == null) return null;
+    const prefix_len = last_sep.?;
+    if (prefix_len == 0) return null;
+
+    const prefix = try allocator.alloc(u8, prefix_len);
+    for (pattern[0..prefix_len], 0..) |ch, idx| {
+        prefix[idx] = if (style.isSep(ch)) style.separator() else ch;
+    }
+    return prefix;
+}
+
+fn pathPrefixCompatible(rel_path: []const u8, prefix: []const u8, style: path.Style) bool {
+    if (prefix.len == 0) return true;
+    return hasComponentPrefix(prefix, rel_path, style) or hasComponentPrefix(rel_path, prefix, style);
+}
+
+fn hasComponentPrefix(full: []const u8, prefix: []const u8, style: path.Style) bool {
+    if (!std.mem.startsWith(u8, full, prefix)) return false;
+    if (full.len == prefix.len) return true;
+    return style.isSep(full[prefix.len]);
+}
+
+fn canPatternMatchNested(pattern: []const u8, style: path.Style) bool {
+    var i: usize = 0;
+    while (i < pattern.len) : (i += 1) {
+        const ch = pattern[i];
+
+        if (ch == '\\' and i + 1 < pattern.len) {
+            i += 1;
+            continue;
+        }
+
+        if (style.isSep(ch)) return true;
+
+        if (ch == '*' and i + 1 < pattern.len and pattern[i + 1] == '*') {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -432,6 +534,14 @@ test "walker include_dirs and include_files flags" {
         }
         try std.testing.expectEqual(@as(usize, 1), count);
     }
+}
+
+test "canPatternMatchNested heuristic" {
+    try std.testing.expect(!canPatternMatchNested("*.zig", .posix));
+    try std.testing.expect(!canPatternMatchNested("file-{a,b}.txt", .posix));
+    try std.testing.expect(canPatternMatchNested("src/*.zig", .posix));
+    try std.testing.expect(canPatternMatchNested("**.zig", .posix));
+    try std.testing.expect(!canPatternMatchNested("src\\*.zig", .windows));
 }
 
 test {

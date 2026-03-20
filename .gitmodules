@@ -1,3 +1,6 @@
 [submodule "modules/xdg"]
 	path = modules/xdg
 	url = https://github.com/jassielof/xdg-zig
+[submodule "references/zlob"]
+	path = references/zlob
+	url = https://github.com/dmtrKovalenko/zlob

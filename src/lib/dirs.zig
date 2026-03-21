@@ -3,14 +3,10 @@
 //! On Linux, the XDG Base Directory Specification is followed.
 //! On macOS, standard Apple directory conventions are used.
 //! On Windows, `%APPDATA%` and `%LOCALAPPDATA%` are used.
-//!
-// TODO(xdg-migration): The Linux implementation of config(), data(), cache(),
-// and runtime() is currently inlined here. Once the xdg Zig port is available
-// as a dependency, replace these calls with xdg.base_dirs.configHome(), etc.
-// Tracked: https://github.com/jassielof/xdg
 
 const std = @import("std");
 const builtin = @import("builtin");
+const xdg = @import("xdg");
 const path = @import("path.zig");
 
 const Allocator = std.mem.Allocator;
@@ -44,14 +40,14 @@ pub fn home(alloc: Allocator) ![]u8 {
 ///
 /// Caller owns the returned memory.
 ///
-/// - Linux:   `$XDG_CONFIG_HOME` or `~/.config`  // xdg-migration
+/// - Linux:   `$XDG_CONFIG_HOME` or `~/.config`
 /// - Windows: `%APPDATA%`
 /// - macOS:   `~/Library/Application Support`
 pub fn config(alloc: Allocator) ![]u8 {
     return switch (builtin.os.tag) {
         .windows => envOwned(alloc, "APPDATA"),
         .macos => joinHome(alloc, "Library/Application Support"),
-        else => xdgOrHome(alloc, "XDG_CONFIG_HOME", ".config"), // xdg-migration
+        else => xdgHomeOrUnknown(alloc, xdg.base_directory.xdgConfigHome),
     };
 }
 
@@ -59,14 +55,14 @@ pub fn config(alloc: Allocator) ![]u8 {
 ///
 /// Caller owns the returned memory.
 ///
-/// - Linux:   `$XDG_DATA_HOME` or `~/.local/share`  // xdg-migration
+/// - Linux:   `$XDG_DATA_HOME` or `~/.local/share`
 /// - Windows: `%APPDATA%`
 /// - macOS:   `~/Library/Application Support`
 pub fn data(alloc: Allocator) ![]u8 {
     return switch (builtin.os.tag) {
         .windows => envOwned(alloc, "APPDATA"),
         .macos => joinHome(alloc, "Library/Application Support"),
-        else => xdgOrHome(alloc, "XDG_DATA_HOME", ".local/share"), // xdg-migration
+        else => xdgHomeOrUnknown(alloc, xdg.base_directory.xdgDataHome),
     };
 }
 
@@ -74,14 +70,14 @@ pub fn data(alloc: Allocator) ![]u8 {
 ///
 /// Caller owns the returned memory.
 ///
-/// - Linux:   `$XDG_CACHE_HOME` or `~/.cache`  // xdg-migration
+/// - Linux:   `$XDG_CACHE_HOME` or `~/.cache`
 /// - Windows: `%LOCALAPPDATA%`
 /// - macOS:   `~/Library/Caches`
 pub fn cache(alloc: Allocator) ![]u8 {
     return switch (builtin.os.tag) {
         .windows => envOwned(alloc, "LOCALAPPDATA"),
         .macos => joinHome(alloc, "Library/Caches"),
-        else => xdgOrHome(alloc, "XDG_CACHE_HOME", ".cache"), // xdg-migration
+        else => xdgHomeOrUnknown(alloc, xdg.base_directory.xdgCacheHome),
     };
 }
 
@@ -89,7 +85,7 @@ pub fn cache(alloc: Allocator) ![]u8 {
 ///
 /// Caller owns the returned memory.
 ///
-/// - Linux:   `$XDG_RUNTIME_DIR` (returns `error.NotAvailable` if unset)  // xdg-migration
+/// - Linux:   `$XDG_RUNTIME_DIR` (uses `/run/user/$UID` fallback when unset)
 /// - Windows: `%LOCALAPPDATA%\Temp`
 /// - macOS:   `$TMPDIR`
 pub fn runtime(alloc: Allocator) ![]u8 {
@@ -100,7 +96,7 @@ pub fn runtime(alloc: Allocator) ![]u8 {
             break :blk path.join(alloc, &.{ base, "Temp" });
         },
         .macos => envOwned(alloc, "TMPDIR"),
-        else => envOwned(alloc, "XDG_RUNTIME_DIR"), // xdg-migration
+        else => (try xdg.base_directory.xdgRuntimeDir(alloc)) orelse error.NotAvailable,
     };
 }
 
@@ -140,10 +136,15 @@ fn joinHome(alloc: Allocator, suffix: []const u8) ![]u8 {
     return path.join(alloc, &.{ home_dir, suffix });
 }
 
-/// Returns `$xdg_var` if set, otherwise `$HOME/<fallback>`.
-fn xdgOrHome(alloc: Allocator, xdg_var: []const u8, fallback_suffix: []const u8) ![]u8 {
-    if (std.process.getEnvVarOwned(alloc, xdg_var)) |v| return v else |_| {}
-    return joinHome(alloc, fallback_suffix);
+/// Calls an XDG home resolver and normalizes HOME-not-found to `error.HomeDirUnknown`.
+fn xdgHomeOrUnknown(
+    alloc: Allocator,
+    comptime resolver: fn (Allocator, ?*const std.process.EnvMap) anyerror![]u8,
+) ![]u8 {
+    return resolver(alloc, null) catch |err| switch (err) {
+        error.EnvironmentVariableNotFound => error.HomeDirUnknown,
+        else => err,
+    };
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

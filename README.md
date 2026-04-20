@@ -8,10 +8,10 @@ Vereda includes a filesystem-independent glob engine in src/lib/glob.zig.
 
 Supported syntax:
 
-- - matches any sequence within one path segment
-- ** matches across segment boundaries
-- ? matches one non-separator character
-- [abc], [a-z], [!abc] character classes
+- `-` matches any sequence within one path segment
+- `**` matches across segment boundaries
+- `?` matches one non-separator character
+- `[abc]`, `[a-z]`, `[!abc]` character classes
 - escaped metacharacters with backslash
 - brace alternation with safety limits, including nested braces
 

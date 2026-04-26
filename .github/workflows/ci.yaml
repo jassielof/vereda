@@ -23,8 +23,6 @@ jobs:
 
       - name: Setup Zig
         uses: jassielof/setup-zig@v1
-        with:
-          cache: true
 
       - name: Formatting
         run: zig fmt .
@@ -36,7 +34,7 @@ jobs:
         run: zig build docs --summary all
 
       - name: Upload docs artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: zig-out/docs
 
@@ -72,4 +70,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

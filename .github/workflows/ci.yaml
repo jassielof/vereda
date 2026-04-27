@@ -55,8 +55,6 @@ jobs:
 
       - name: Setup Zig
         uses: jassielof/setup-zig@v1
-        with:
-          cache: true
 
       - name: Tests
         run: zig build tests --summary all

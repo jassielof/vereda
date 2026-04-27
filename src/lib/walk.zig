@@ -12,6 +12,7 @@ const glob_mod = @import("glob.zig");
 const path = @import("path.zig");
 
 const Allocator = std.mem.Allocator;
+const Io = std.Io;
 
 // ── Options ───────────────────────────────────────────────────────────────────
 
@@ -60,7 +61,7 @@ pub const Options = struct {
 /// need them to outlive the next iteration.
 pub const Entry = struct {
     /// The open directory that contains this entry.
-    dir: std.fs.Dir,
+    dir: Io.Dir,
     /// The entry name within its parent directory (no separators).
     /// Slice into `path`.
     basename: []const u8,
@@ -68,7 +69,7 @@ pub const Entry = struct {
     /// Valid only until the next `Walker.next` call.
     path: []const u8,
     /// Entry kind (file, directory, symlink, …).
-    kind: std.fs.Dir.Entry.Kind,
+    kind: Io.File.Kind,
     /// Depth relative to the walk root (root entries are at depth 0).
     depth: usize,
 };
@@ -76,8 +77,8 @@ pub const Entry = struct {
 // ── Internal frame ────────────────────────────────────────────────────────────
 
 const Frame = struct {
-    dir: std.fs.Dir,
-    iter: std.fs.Dir.Iterator,
+    dir: Io.Dir,
+    iter: Io.Dir.Iterator,
     close_on_pop: bool,
     depth: usize,
     prefix_len: usize,
@@ -92,6 +93,7 @@ const Frame = struct {
 /// Call `deinit` when finished to release all resources.
 pub const Walker = struct {
     allocator: Allocator,
+    io: Io,
     options: Options,
     matcher: ?glob_mod.Pattern,
     prune_dir_prefix: ?[]u8 = null,
@@ -105,11 +107,12 @@ pub const Walker = struct {
     /// The caller remains responsible for closing `root_dir`; the walker will
     /// not close it on `deinit`. Use `initOwned` or the `walk` free function
     /// if you want the walker to take ownership.
-    pub fn init(allocator: Allocator, root_dir: std.fs.Dir, options: Options) !Walker {
+    pub fn init(allocator: Allocator, root_dir: Io.Dir, options: Options) !Walker {
         const style = options.style.resolve();
 
         var walker = Walker{
             .allocator = allocator,
+            .io = defaultIo(),
             .options = options,
             .matcher = if (options.pattern) |pattern|
                 try glob_mod.Pattern.compileWithOptions(allocator, pattern, .{ .style = options.style })
@@ -135,7 +138,7 @@ pub const Walker = struct {
         });
 
         if (options.follow_symlinks) {
-            const root_realpath = try root_dir.realpathAlloc(allocator, ".");
+            const root_realpath = try root_dir.realPathFileAlloc(walker.io, ".", allocator);
             errdefer allocator.free(root_realpath);
             try walker.visited_dirs.put(allocator, root_realpath, {});
         }
@@ -144,7 +147,7 @@ pub const Walker = struct {
     }
 
     /// Creates a `Walker` that owns `root_dir` and will close it on `deinit`.
-    pub fn initOwned(allocator: Allocator, root_dir: std.fs.Dir, options: Options) !Walker {
+    pub fn initOwned(allocator: Allocator, root_dir: Io.Dir, options: Options) !Walker {
         var w = try Walker.init(allocator, root_dir, options);
         w.frames.items[0].close_on_pop = true;
         return w;
@@ -165,7 +168,7 @@ pub const Walker = struct {
         }
 
         for (self.frames.items) |*frame| {
-            if (frame.close_on_pop) frame.dir.close();
+            if (frame.close_on_pop) frame.dir.close(self.io);
         }
 
         var it = self.visited_dirs.iterator();
@@ -187,12 +190,12 @@ pub const Walker = struct {
             var top = &self.frames.items[self.frames.items.len - 1];
             self.path_buffer.shrinkRetainingCapacity(top.prefix_len);
 
-            const maybe_base = top.iter.next() catch |err| {
+            const maybe_base = top.iter.next(self.io) catch |err| {
                 var frame = self.frames.pop().?;
                 self.path_buffer.shrinkRetainingCapacity(
                     if (self.frames.items.len == 0) 0 else self.frames.items[self.frames.items.len - 1].prefix_len,
                 );
-                if (frame.close_on_pop) frame.dir.close();
+                if (frame.close_on_pop) frame.dir.close(self.io);
                 return err;
             };
 
@@ -201,7 +204,7 @@ pub const Walker = struct {
                 self.path_buffer.shrinkRetainingCapacity(
                     if (self.frames.items.len == 0) 0 else self.frames.items[self.frames.items.len - 1].prefix_len,
                 );
-                if (frame.close_on_pop) frame.dir.close();
+                if (frame.close_on_pop) frame.dir.close(self.io);
                 continue;
             }
 
@@ -239,7 +242,7 @@ pub const Walker = struct {
         return null;
     }
 
-    fn matchesFilters(self: *Walker, kind: std.fs.Dir.Entry.Kind, base_name: []const u8, rel_path: []const u8) bool {
+    fn matchesFilters(self: *Walker, kind: Io.File.Kind, base_name: []const u8, rel_path: []const u8) bool {
         const is_dir = kind == .directory;
 
         if (is_dir and !self.options.include_dirs) return false;
@@ -272,9 +275,9 @@ pub const Walker = struct {
 
     fn tryPushChildDir(
         self: *Walker,
-        parent_dir: std.fs.Dir,
+        parent_dir: Io.Dir,
         name: []const u8,
-        kind: std.fs.Dir.Entry.Kind,
+        kind: Io.File.Kind,
         rel_path: []const u8,
         depth: usize,
     ) !void {
@@ -297,14 +300,14 @@ pub const Walker = struct {
             }
         }
 
-        var child_dir = parent_dir.openDir(name, .{ .iterate = true }) catch |err| switch (err) {
+        var child_dir = parent_dir.openDir(self.io, name, .{ .iterate = true }) catch |err| switch (err) {
             error.NotDir, error.FileNotFound => return,
             else => return err,
         };
-        errdefer child_dir.close();
+        errdefer child_dir.close(self.io);
 
         if (self.options.follow_symlinks) {
-            const canonical = try parent_dir.realpathAlloc(self.allocator, name);
+            const canonical = try parent_dir.realPathFileAlloc(self.io, name, self.allocator);
             errdefer self.allocator.free(canonical);
 
             const result = try self.visited_dirs.getOrPut(self.allocator, canonical);
@@ -332,8 +335,9 @@ pub const Walker = struct {
 /// `root_path` is resolved relative to the current working directory.
 /// Caller must call `Walker.deinit` when done.
 pub fn walk(alloc: Allocator, root_path: []const u8, options: Options) !Walker {
-    var root_dir = try std.fs.cwd().openDir(root_path, .{ .iterate = true });
-    errdefer root_dir.close();
+    const io = defaultIo();
+    var root_dir = try Io.Dir.cwd().openDir(io, root_path, .{ .iterate = true });
+    errdefer root_dir.close(io);
     return Walker.initOwned(alloc, root_dir, options);
 }
 
@@ -347,7 +351,7 @@ pub fn glob(alloc: Allocator, dir_path: []const u8, pattern: []const u8) !Walker
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
-fn shouldDescend(options: Options, depth: usize, kind: std.fs.Dir.Entry.Kind) bool {
+fn shouldDescend(options: Options, depth: usize, kind: Io.File.Kind) bool {
     if (kind != .directory and !(kind == .sym_link and options.follow_symlinks)) return false;
     if (options.max_depth) |max_depth| return depth < max_depth;
     return true;
@@ -422,39 +426,44 @@ fn canPatternMatchNested(pattern: []const u8, style: path.Style) bool {
     return false;
 }
 
+fn defaultIo() Io {
+    return Io.Threaded.global_single_threaded.io();
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 test "walker filters extension depth and hidden entries" {
     const allocator = std.testing.allocator;
 
+    const io = std.testing.io;
     var sandbox = std.testing.tmpDir(.{});
     defer sandbox.cleanup();
 
-    try sandbox.dir.makeDir("src");
-    try sandbox.dir.makeDir(".hidden");
+    try sandbox.dir.createDir(io, "src", .default_dir);
+    try sandbox.dir.createDir(io, ".hidden", .default_dir);
 
     {
-        const file = try sandbox.dir.createFile("root.zig", .{});
-        file.close();
+        const file = try sandbox.dir.createFile(io, "root.zig", .{});
+        file.close(io);
     }
     {
-        var src_dir = try sandbox.dir.openDir("src", .{});
-        defer src_dir.close();
-        const f1 = try src_dir.createFile("main.zig", .{});
-        f1.close();
-        const f2 = try src_dir.createFile("notes.txt", .{});
-        f2.close();
+        var src_dir = try sandbox.dir.openDir(io, "src", .{});
+        defer src_dir.close(io);
+        const f1 = try src_dir.createFile(io, "main.zig", .{});
+        f1.close(io);
+        const f2 = try src_dir.createFile(io, "notes.txt", .{});
+        f2.close(io);
     }
     {
-        var hidden_dir = try sandbox.dir.openDir(".hidden", .{});
-        defer hidden_dir.close();
-        const f = try hidden_dir.createFile("secret.zig", .{});
-        f.close();
+        var hidden_dir = try sandbox.dir.openDir(io, ".hidden", .{});
+        defer hidden_dir.close(io);
+        const f = try hidden_dir.createFile(io, "secret.zig", .{});
+        f.close(io);
     }
 
     // Open with iterate = true to satisfy Windows access rights for directory listing.
-    var iter_root = try sandbox.dir.openDir(".", .{ .iterate = true });
-    defer iter_root.close();
+    var iter_root = try sandbox.dir.openDir(io, ".", .{ .iterate = true });
+    defer iter_root.close(io);
 
     var walker = try Walker.init(allocator, iter_root, .{
         .style = .posix,
@@ -489,15 +498,16 @@ test "walker filters extension depth and hidden entries" {
 test "walker include_dirs and include_files flags" {
     const allocator = std.testing.allocator;
 
+    const io = std.testing.io;
     var sandbox = std.testing.tmpDir(.{});
     defer sandbox.cleanup();
 
-    try sandbox.dir.makeDir("subdir");
-    const f = try sandbox.dir.createFile("file.txt", .{});
-    f.close();
+    try sandbox.dir.createDir(io, "subdir", .default_dir);
+    const f = try sandbox.dir.createFile(io, "file.txt", .{});
+    f.close(io);
 
-    var iter_root = try sandbox.dir.openDir(".", .{ .iterate = true });
-    defer iter_root.close();
+    var iter_root = try sandbox.dir.openDir(io, ".", .{ .iterate = true });
+    defer iter_root.close(io);
 
     // Files only
     {
@@ -518,8 +528,8 @@ test "walker include_dirs and include_files flags" {
 
     // Dirs only
     {
-        var iter_root2 = try sandbox.dir.openDir(".", .{ .iterate = true });
-        defer iter_root2.close();
+        var iter_root2 = try sandbox.dir.openDir(io, ".", .{ .iterate = true });
+        defer iter_root2.close(io);
         var walker = try Walker.init(allocator, iter_root2, .{
             .style = .posix,
             .include_dirs = true,

@@ -10,6 +10,7 @@ const xdg = @import("xdg");
 const path = @import("path.zig");
 
 const Allocator = std.mem.Allocator;
+const Environ = std.process.Environ;
 
 // ── Errors ────────────────────────────────────────────────────────────────────
 
@@ -103,19 +104,19 @@ pub fn runtime(alloc: Allocator) ![]u8 {
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 fn homePosix(alloc: Allocator) ![]u8 {
-    return std.process.getEnvVarOwned(alloc, "HOME") catch |err| switch (err) {
-        error.EnvironmentVariableNotFound => error.HomeDirUnknown,
+    return getEnvOwned(alloc, "HOME") catch |err| switch (err) {
+        error.EnvironmentVariableMissing => error.HomeDirUnknown,
         else => |e| e,
     };
 }
 
 fn homeWindows(alloc: Allocator) ![]u8 {
-    if (std.process.getEnvVarOwned(alloc, "USERPROFILE")) |v| return v else |_| {}
+    if (getEnvOwned(alloc, "USERPROFILE")) |v| return v else |_| {}
 
-    const drive = std.process.getEnvVarOwned(alloc, "HOMEDRIVE") catch return error.HomeDirUnknown;
+    const drive = getEnvOwned(alloc, "HOMEDRIVE") catch return error.HomeDirUnknown;
     defer alloc.free(drive);
 
-    const home_path = std.process.getEnvVarOwned(alloc, "HOMEPATH") catch return error.HomeDirUnknown;
+    const home_path = getEnvOwned(alloc, "HOMEPATH") catch return error.HomeDirUnknown;
     defer alloc.free(home_path);
 
     return path.join(alloc, &.{ drive, home_path });
@@ -123,10 +124,15 @@ fn homeWindows(alloc: Allocator) ![]u8 {
 
 /// Returns the value of environment variable `var_name`, or `error.NotAvailable`.
 fn envOwned(alloc: Allocator, var_name: []const u8) ![]u8 {
-    return std.process.getEnvVarOwned(alloc, var_name) catch |err| switch (err) {
-        error.EnvironmentVariableNotFound => error.NotAvailable,
+    return getEnvOwned(alloc, var_name) catch |err| switch (err) {
+        error.EnvironmentVariableMissing => error.NotAvailable,
         else => |e| e,
     };
+}
+
+fn getEnvOwned(alloc: Allocator, var_name: []const u8) ![]u8 {
+    const environ: Environ = .{ .block = if (builtin.os.tag == .windows) .global else .empty };
+    return Environ.getAlloc(environ, alloc, var_name);
 }
 
 /// Returns `$HOME/<suffix>` as an owned string.
@@ -139,10 +145,10 @@ fn joinHome(alloc: Allocator, suffix: []const u8) ![]u8 {
 /// Calls an XDG home resolver and normalizes HOME-not-found to `error.HomeDirUnknown`.
 fn xdgHomeOrUnknown(
     alloc: Allocator,
-    comptime resolver: fn (Allocator, ?*const std.process.EnvMap) anyerror![]u8,
+    comptime resolver: fn (Allocator, ?*const Environ.Map) anyerror![]u8,
 ) ![]u8 {
     return resolver(alloc, null) catch |err| switch (err) {
-        error.EnvironmentVariableNotFound => error.HomeDirUnknown,
+        error.EnvironmentVariableMissing => error.HomeDirUnknown,
         else => err,
     };
 }

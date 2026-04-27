@@ -1,55 +1,19 @@
-//! Vereda — Zig 0.15 path and filesystem utility library.
-//!
-//! Import once to access the full API:
-//!
-//! ```zig
-//! const vereda = @import("vereda");
-//!
-//! const p = try vereda.path.join(alloc, &.{"a", "b"});
-//! const home = try vereda.dirs.home(alloc);
-//! ```
-//!
-//! Modules:
-//! - `path`: pure string-based path manipulation (no I/O, no allocations for simple queries)
-//! - `glob`: filesystem-independent glob pattern matching
-//! - `walk`: lazy recursive directory traversal with filtering
-//! - `fs`:   shutil-style filesystem helpers
-//! - `dirs`: platform-aware resolution of standard user directories
+//! Vereda is a path and filesystem utility library.
+const std = @import("std");
 
-pub const path = @import("path.zig");
-pub const glob = @import("glob.zig");
-pub const walk = @import("walk.zig");
-pub const fs = @import("fs.zig");
 pub const dirs = @import("dirs.zig");
-
-/// Convenience re-exports from `path`.
+const errors = @import("errors.zig");
+pub const Error = errors.Error;
+pub const fs = @import("fs.zig");
+pub const glob = @import("glob.zig");
+pub const path = @import("path.zig");
 pub const Path = path.Path;
 pub const PathBuf = path.PathBuf;
 pub const PathStyle = path.Style;
+pub const walk = @import("walk.zig");
 
-/// Shared cross-cutting error set.
-///
-/// Individual modules may define additional errors; these cover the common cases
-/// returned across the public API.
-pub const Error = error{
-    /// A requested path or resource was not found.
-    NotFound,
-    /// The caller lacks permission to access the resource.
-    PermissionDenied,
-    /// Expected a directory but found something else.
-    NotADirectory,
-    /// Expected a file but found something else.
-    NotAFile,
-    /// The resource already exists and the operation does not allow overwriting.
-    AlreadyExists,
-    /// The provided path is syntactically invalid.
-    InvalidPath,
-    /// The requested feature is not available on the current operating system.
-    Unsupported,
-    /// A required runtime resource is unavailable (e.g. `XDG_RUNTIME_DIR` not set).
-    NotAvailable,
-};
+const vereda = @This();
 
-test {
-    @import("std").testing.refAllDecls(@This());
+comptime {
+    std.testing.refAllDecls(vereda);
 }

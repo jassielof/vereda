@@ -5,33 +5,34 @@ const walk_mod = @import("vereda").walk;
 
 test "walk yields all files in a tree" {
     const alloc = std.testing.allocator;
+    const io = std.testing.io;
 
     var sandbox = std.testing.tmpDir(.{});
     defer sandbox.cleanup();
 
-    try sandbox.dir.makeDir("a");
-    try sandbox.dir.makeDir("a/b");
+    try sandbox.dir.createDir(io, "a", .default_dir);
+    try sandbox.dir.createDirPath(io, "a/b");
 
     {
-        const f = try sandbox.dir.createFile("root.txt", .{});
-        f.close();
+        const f = try sandbox.dir.createFile(io, "root.txt", .{});
+        f.close(io);
     }
     {
-        var a = try sandbox.dir.openDir("a", .{});
-        defer a.close();
-        const f = try a.createFile("a.txt", .{});
-        f.close();
+        var a = try sandbox.dir.openDir(io, "a", .{});
+        defer a.close(io);
+        const f = try a.createFile(io, "a.txt", .{});
+        f.close(io);
     }
     {
-        var b = try sandbox.dir.openDir("a/b", .{});
-        defer b.close();
-        const f = try b.createFile("b.txt", .{});
-        f.close();
+        var b = try sandbox.dir.openDir(io, "a/b", .{});
+        defer b.close(io);
+        const f = try b.createFile(io, "b.txt", .{});
+        f.close(io);
     }
 
     // Use realpath so the `walk` free function can open with iterate rights
     var root_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const root_path = try sandbox.dir.realpath(".", &root_buf);
+    const root_path = root_buf[0..try sandbox.dir.realPathFile(io, ".", &root_buf)];
 
     var walker = try walk_mod.walk(alloc, root_path, .{
         .style = .posix,
@@ -64,24 +65,25 @@ test "walk yields all files in a tree" {
 
 test "walk max_depth=0 yields only root-level entries" {
     const alloc = std.testing.allocator;
+    const io = std.testing.io;
 
     var sandbox = std.testing.tmpDir(.{});
     defer sandbox.cleanup();
 
-    try sandbox.dir.makeDir("subdir");
+    try sandbox.dir.createDir(io, "subdir", .default_dir);
     {
-        const f = try sandbox.dir.createFile("top.txt", .{});
-        f.close();
+        const f = try sandbox.dir.createFile(io, "top.txt", .{});
+        f.close(io);
     }
     {
-        var sub = try sandbox.dir.openDir("subdir", .{});
-        defer sub.close();
-        const f = try sub.createFile("deep.txt", .{});
-        f.close();
+        var sub = try sandbox.dir.openDir(io, "subdir", .{});
+        defer sub.close(io);
+        const f = try sub.createFile(io, "deep.txt", .{});
+        f.close(io);
     }
 
     var root_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const root_path = try sandbox.dir.realpath(".", &root_buf);
+    const root_path = root_buf[0..try sandbox.dir.realPathFile(io, ".", &root_buf)];
 
     var walker = try walk_mod.walk(alloc, root_path, .{
         .style = .posix,
@@ -98,25 +100,26 @@ test "walk max_depth=0 yields only root-level entries" {
 
 test "walk glob pattern filters results" {
     const alloc = std.testing.allocator;
+    const io = std.testing.io;
 
     var sandbox = std.testing.tmpDir(.{});
     defer sandbox.cleanup();
 
     {
-        const f = try sandbox.dir.createFile("main.zig", .{});
-        f.close();
+        const f = try sandbox.dir.createFile(io, "main.zig", .{});
+        f.close(io);
     }
     {
-        const f = try sandbox.dir.createFile("README.md", .{});
-        f.close();
+        const f = try sandbox.dir.createFile(io, "README.md", .{});
+        f.close(io);
     }
     {
-        const f = try sandbox.dir.createFile("build.zig", .{});
-        f.close();
+        const f = try sandbox.dir.createFile(io, "build.zig", .{});
+        f.close(io);
     }
 
     var root_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const root_path = try sandbox.dir.realpath(".", &root_buf);
+    const root_path = root_buf[0..try sandbox.dir.realPathFile(io, ".", &root_buf)];
 
     var walker = try walk_mod.walk(alloc, root_path, .{
         .style = .posix,

@@ -56,3 +56,8 @@ Notes:
 - Walker uses conservative literal-prefix pruning to skip directory branches that cannot match fixed leading path parts.
 - Walker also skips descent entirely when the pattern cannot match nested paths (for example `*.zig`).
 - Escapes are enabled by default in glob matching.
+
+## Credits
+
+- <https://github.com/ziglibs/known-folders>
+- <https://github.com/dmtrKovalenko/zlob/>

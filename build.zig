@@ -34,7 +34,7 @@ pub fn build(b: *std.Build) void {
     const tests_step = b.step("tests", "Run the test suite");
 
     const unit_tests = b.addTest(.{
-        .name = "unit tests",
+        .name = "Unit Tests",
         .root_module = lib_mod,
     });
 
@@ -42,7 +42,7 @@ pub fn build(b: *std.Build) void {
     tests_step.dependOn(&run_unit_tests.step);
 
     const integration_tests = b.addTest(.{
-        .name = "integration tests",
+        .name = "Integration Tests",
         .root_module = b.createModule(.{
             .root_source_file = b.path("tests/suite.zig"),
             .target = target,

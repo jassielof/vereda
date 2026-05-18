@@ -63,8 +63,7 @@ pub fn remove(p: []const u8) !void {
 ///
 /// No-op if `p` does not exist.
 ///
-/// **Windows note:** read-only files may cause failures. A future version will
-/// strip read-only attributes before deletion.
+/// **Windows note:** read-only files may cause failures. A future version will strip read-only attributes before deletion.
 pub fn removeAll(alloc: Allocator, p: []const u8) !void {
     _ = alloc;
     if (!exists(p)) return;
@@ -125,16 +124,14 @@ pub fn stat(p: []const u8) !Io.File.Stat {
 
 /// Reads the entire file at `p` into a caller-owned slice.
 ///
-/// Limited to `default_max_bytes` (16 MiB). For larger files use `readFileMax`.
-/// Caller must free the returned slice.
+/// Limited to `default_max_bytes` (16 MiB). For larger files use `readFileMax`. Caller must free the returned slice.
 pub fn readFile(alloc: Allocator, p: []const u8) ![]u8 {
     return readFileMax(alloc, p, default_max_bytes);
 }
 
 /// Reads the entire file at `p` into a caller-owned slice, up to `max_bytes`.
 ///
-/// Returns `error.FileTooBig` if the file exceeds `max_bytes`.
-/// Caller must free the returned slice.
+/// Returns `error.FileTooBig` if the file exceeds `max_bytes`. Caller must free the returned slice.
 pub fn readFileMax(alloc: Allocator, p: []const u8, max_bytes: usize) ![]u8 {
     return Io.Dir.cwd().readFileAlloc(defaultIo(), p, alloc, .limited(max_bytes));
 }
@@ -148,8 +145,7 @@ pub fn writeFile(p: []const u8, data: []const u8) !void {
 ///
 /// Caller owns the returned memory.
 ///
-/// On Windows the leading `/` before the drive letter is stripped and forward
-/// slashes are converted to backslashes.
+/// On Windows the leading `/` before the drive letter is stripped and forward slashes are converted to backslashes.
 pub fn fromFileUri(alloc: Allocator, uri: []const u8) ![]u8 {
     var arena_state = std.heap.ArenaAllocator.init(alloc);
     defer arena_state.deinit();

@@ -6,15 +6,17 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const xdg_dep = b.dependency("xdg", .{});
+    const xdg = b.dependency("xdg", .{}).module("xdg");
 
     const lib_mod = b.addModule(mod_name, .{
         .root_source_file = b.path("src/lib/root.zig"),
         .target = target,
         .optimize = optimize,
+        .imports = &.{.{
+            .name = "xdg",
+            .module = xdg,
+        }},
     });
-
-    lib_mod.addImport("xdg", xdg_dep.module("xdg"));
 
     const docs_lib = b.addLibrary(.{
         .name = mod_name,
@@ -31,10 +33,10 @@ pub fn build(b: *std.Build) void {
 
     docs_step.dependOn(&docs.step);
 
-    const tests_step = b.step("tests", "Run the test suite");
+    const tests_step = b.step("test", "Run the test suite");
 
     const unit_tests = b.addTest(.{
-        .name = "Unit Tests",
+        .name = "Unit",
         .root_module = lib_mod,
     });
 
@@ -42,7 +44,7 @@ pub fn build(b: *std.Build) void {
     tests_step.dependOn(&run_unit_tests.step);
 
     const integration_tests = b.addTest(.{
-        .name = "Integration Tests",
+        .name = "Integration",
         .root_module = b.createModule(.{
             .root_source_file = b.path("tests/suite.zig"),
             .target = target,

@@ -14,8 +14,6 @@ const path = @import("path.zig");
 const Allocator = std.mem.Allocator;
 const Io = std.Io;
 
-// ── Options ───────────────────────────────────────────────────────────────────
-
 /// Options controlling `Walker` behaviour.
 pub const Options = struct {
     /// Path style used for separator handling and glob matching.
@@ -74,8 +72,6 @@ pub const Entry = struct {
     depth: usize,
 };
 
-// ── Internal frame ────────────────────────────────────────────────────────────
-
 const Frame = struct {
     dir: Io.Dir,
     iter: Io.Dir.Iterator,
@@ -83,8 +79,6 @@ const Frame = struct {
     depth: usize,
     prefix_len: usize,
 };
-
-// ── Walker ────────────────────────────────────────────────────────────────────
 
 /// A lazy, stack-based recursive directory walker.
 ///
@@ -552,8 +546,4 @@ test "canPatternMatchNested heuristic" {
     try std.testing.expect(canPatternMatchNested("src/*.zig", .posix));
     try std.testing.expect(canPatternMatchNested("**.zig", .posix));
     try std.testing.expect(!canPatternMatchNested("src\\*.zig", .windows));
-}
-
-test {
-    std.testing.refAllDecls(@This());
 }

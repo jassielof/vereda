@@ -1,6 +1,5 @@
 //! Vereda is a path and filesystem utility library.
 const std = @import("std");
-const refAllDecls = std.testing.refAllDecls;
 
 pub const dirs = @import("dirs.zig");
 const errors = @import("errors.zig");
@@ -14,5 +13,5 @@ pub const PathStyle = path.Style;
 pub const walk = @import("walk.zig");
 
 comptime {
-    refAllDecls(@This());
+    std.testing.refAllDecls(@This());
 }

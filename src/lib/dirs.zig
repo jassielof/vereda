@@ -1,8 +1,8 @@
 //! Platform-aware resolution of standard user directories.
 //!
-//! On Linux, the XDG Base Directory Specification is followed.
-//! On macOS, standard Apple directory conventions are used.
-//! On Windows, `%APPDATA%` and `%LOCALAPPDATA%` are used.
+//! - On Linux, the XDG Base Directory Specification is followed.
+//! - On macOS, standard Apple directory conventions are used.
+//! - On Windows, `%APPDATA%` and `%LOCALAPPDATA%` are used.
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -11,8 +11,6 @@ const path = @import("path.zig");
 
 const Allocator = std.mem.Allocator;
 const Environ = std.process.Environ;
-
-// ── Errors ────────────────────────────────────────────────────────────────────
 
 /// Errors specific to directory resolution.
 pub const Error = error{
@@ -180,8 +178,4 @@ test "cache returns a non-empty string" {
     defer alloc.free(c);
 
     try std.testing.expect(c.len > 0);
-}
-
-test {
-    std.testing.refAllDecls(@This());
 }

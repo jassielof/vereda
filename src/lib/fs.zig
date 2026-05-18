@@ -1,10 +1,8 @@
 //! Higher-level filesystem helpers (shutil-style).
 //!
-//! All path arguments are resolved relative to the current working directory
-//! unless they are absolute.
+//! All path arguments are resolved relative to the current working directory unless they are absolute.
 //!
-//! Error handling: every fallible function returns a typed error union.
-//! No sentinel returns, no silent failures.
+//! Error handling: every fallible function returns a typed error union. No sentinel returns, no silent failures.
 
 const std = @import("std");
 const path = @import("path.zig");
@@ -16,15 +14,11 @@ const Io = std.Io;
 /// Maximum bytes read by `readFile` when no explicit limit is given (16 MiB).
 pub const default_max_bytes: usize = 16 * 1024 * 1024;
 
-// ── Errors ────────────────────────────────────────────────────────────────────
-
 /// Errors originating in `fs.fromFileUri` / `fs.toFileUri`.
 pub const Error = error{
     /// The URI scheme was not `file://`, or the host was non-local.
     InvalidFormat,
 };
-
-// ── Existence checks ──────────────────────────────────────────────────────────
 
 /// Returns true if `p` exists (file, directory, symlink — anything accessible).
 ///
@@ -48,8 +42,6 @@ pub fn isDir(p: []const u8) bool {
     return true;
 }
 
-// ── Directory creation ────────────────────────────────────────────────────────
-
 /// Creates `p` and all parent directories that do not yet exist.
 ///
 /// No-op if `p` already exists as a directory.
@@ -59,8 +51,6 @@ pub fn mkdirAll(p: []const u8) !void {
         else => return err,
     };
 }
-
-// ── Deletion ──────────────────────────────────────────────────────────────────
 
 /// Removes the file at `p`.
 ///
@@ -81,8 +71,6 @@ pub fn removeAll(alloc: Allocator, p: []const u8) !void {
     try Io.Dir.cwd().deleteTree(defaultIo(), p);
 }
 
-// ── Copy ──────────────────────────────────────────────────────────────────────
-
 /// Copies the file at `src` to `dst`, overwriting `dst` if it exists.
 pub fn copyFile(src: []const u8, dst: []const u8) !void {
     const cwd = Io.Dir.cwd();
@@ -102,12 +90,9 @@ pub fn copyDir(alloc: Allocator, src: []const u8, dst: []const u8) !void {
     try copyTreeIo(alloc, io, src_dir, dst_dir);
 }
 
-// ── Move ──────────────────────────────────────────────────────────────────────
-
 /// Moves (renames) `src` to `dst`.
 ///
-/// Attempts an atomic rename first. Falls back to copy-then-delete when the
-/// source and destination are on different filesystems (`error.NotSameFileSystem`).
+/// Attempts an atomic rename first. Falls back to copy-then-delete when the source and destination are on different filesystems (`error.NotSameFileSystem`).
 pub fn move(alloc: Allocator, src: []const u8, dst: []const u8) !void {
     const io = defaultIo();
     const cwd = Io.Dir.cwd();
@@ -116,8 +101,6 @@ pub fn move(alloc: Allocator, src: []const u8, dst: []const u8) !void {
         else => return err,
     };
 }
-
-// ── Stat / size ───────────────────────────────────────────────────────────────
 
 /// Returns the size of the file at `p` in bytes.
 pub fn fileSize(p: []const u8) !u64 {
@@ -140,8 +123,6 @@ pub fn stat(p: []const u8) !Io.File.Stat {
     return dir.stat(io);
 }
 
-// ── Read / write ──────────────────────────────────────────────────────────────
-
 /// Reads the entire file at `p` into a caller-owned slice.
 ///
 /// Limited to `default_max_bytes` (16 MiB). For larger files use `readFileMax`.
@@ -162,8 +143,6 @@ pub fn readFileMax(alloc: Allocator, p: []const u8, max_bytes: usize) ![]u8 {
 pub fn writeFile(p: []const u8, data: []const u8) !void {
     try Io.Dir.cwd().writeFile(defaultIo(), .{ .sub_path = p, .data = data });
 }
-
-// ── URI helpers ───────────────────────────────────────────────────────────────
 
 /// Decodes a `file://` URI to a native filesystem path.
 ///
@@ -208,8 +187,7 @@ pub fn fromFileUri(alloc: Allocator, uri: []const u8) ![]u8 {
 ///
 /// Caller owns the returned memory.
 ///
-/// On Windows backslashes are converted to forward slashes and a leading `/`
-/// is prepended before the drive letter.
+/// On Windows backslashes are converted to forward slashes and a leading `/` is prepended before the drive letter.
 pub fn toFileUri(alloc: Allocator, file_path: []const u8) ![]u8 {
     var buf: std.ArrayListUnmanaged(u8) = .empty;
     errdefer buf.deinit(alloc);
@@ -232,8 +210,6 @@ pub fn toFileUri(alloc: Allocator, file_path: []const u8) ![]u8 {
 
     return buf.toOwnedSlice(alloc);
 }
-
-// ── Internal helpers ──────────────────────────────────────────────────────────
 
 /// Recursively copies all entries from `src_dir` into `dst_dir`.
 pub fn copyTree(alloc: Allocator, src_dir: Io.Dir, dst_dir: Io.Dir) !void {
@@ -330,8 +306,6 @@ fn builtinPathStyle() path.Style {
 fn defaultIo() Io {
     return Io.Threaded.global_single_threaded.io();
 }
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
 
 test "exists isFile isDir on real fs" {
     const io = std.testing.io;
@@ -431,8 +405,4 @@ test "file uri round trip" {
     defer allocator.free(round_trip);
 
     try std.testing.expectEqualStrings(native_path, round_trip);
-}
-
-test {
-    std.testing.refAllDecls(@This());
 }

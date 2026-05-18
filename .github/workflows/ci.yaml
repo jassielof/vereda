@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -59,7 +59,7 @@ jobs:
         uses: jassielof/setup-zig@v1
 
       - name: Tests
-        run: zig build tests --summary all
+        run: zig build test --summary all
 
   pages:
     name: Deploy to GitHub Pages

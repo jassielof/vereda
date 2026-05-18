@@ -1,7 +1,6 @@
 //! Pure string-based path manipulation.
 //!
-//! No filesystem access. All functions operate on byte slices.
-//! Platform separator is handled at comptime via `builtin.os.tag`.
+//! No filesystem access. All functions operate on byte slices. Platform separator is handled at comptime via `builtin.os.tag`.
 //!
 //! Two layers are provided:
 //! - Free functions (`basename`, `join`, `normalize`, …) for simple slice-in / slice-out use.
@@ -14,15 +13,11 @@ const Allocator = std.mem.Allocator;
 const ascii = std.ascii;
 const mem = std.mem;
 
-// ── Comptime platform constants ──────────────────────────────────────────────
-
 /// The native path separator character (`\` on Windows, `/` everywhere else).
 pub const sep: u8 = if (builtin.os.tag == .windows) '\\' else '/';
 
 /// The native path separator as a string literal.
 pub const sep_str: []const u8 = if (builtin.os.tag == .windows) "\\" else "/";
-
-// ── Style ────────────────────────────────────────────────────────────────────
 
 /// Selects the path syntax conventions used by path operations.
 pub const Style = enum {
@@ -66,8 +61,6 @@ pub const Style = enum {
     }
 };
 
-// ── Error set ────────────────────────────────────────────────────────────────
-
 /// Errors specific to path operations.
 pub const Error = error{
     /// Both paths must be absolute for this operation.
@@ -80,8 +73,6 @@ pub const Error = error{
     NoFileName,
 };
 
-// ── Internal types ───────────────────────────────────────────────────────────
-
 const RootKind = enum { none, rooted, drive, unc };
 
 const RootInfo = struct {
@@ -93,8 +84,6 @@ const RootInfo = struct {
 
 const Range = struct { start: usize, end: usize };
 
-// ── Public types ─────────────────────────────────────────────────────────────
-
 /// A single path component together with the cumulative path up to and including it.
 pub const Component = struct {
     /// The component name (no separators).
@@ -105,8 +94,7 @@ pub const Component = struct {
 
 /// A borrowed, immutable view of a path string.
 ///
-/// All methods return slices into the original bytes or new `PathBuf` values.
-/// Does not allocate unless explicitly noted.
+/// All methods return slices into the original bytes or new `PathBuf` values. Does not allocate unless explicitly noted.
 pub const Path = struct {
     bytes: []const u8,
     style: Style = .native,
@@ -170,8 +158,7 @@ pub const Path = struct {
 
     /// Returns a new `PathBuf` with the file extension replaced by `ext`.
     ///
-    /// If `ext` does not start with `.`, one is prepended automatically.
-    /// Caller owns the returned `PathBuf`; call `PathBuf.deinit` when done.
+    /// If `ext` does not start with `.`, one is prepended automatically. Caller owns the returned `PathBuf`; call `PathBuf.deinit` when done.
     pub fn withSuffix(self: Path, allocator: Allocator, ext: []const u8) (Allocator.Error || Error)!PathBuf {
         const style = self.style.resolve();
         const file_range = fileNameRange(style, self.bytes) orelse return error.NoFileName;
@@ -190,8 +177,7 @@ pub const Path = struct {
 
     /// Returns a new `PathBuf` with the final component replaced by `name`.
     ///
-    /// `name` must not contain separator characters.
-    /// Caller owns the returned `PathBuf`.
+    /// `name` must not contain separator characters. Caller owns the returned `PathBuf`.
     pub fn withName(self: Path, allocator: Allocator, name: []const u8) (Allocator.Error || Error)!PathBuf {
         const style = self.style.resolve();
         if (name.len == 0) return error.InvalidName;
@@ -420,60 +406,60 @@ pub const Parents = struct {
     }
 };
 
-// ── Free functions ────────────────────────────────────────────────────────────
-
 /// Returns the final component of a path.
 ///
 /// Does not access the filesystem. Returns a slice into the input.
-///
-/// ```zig
-/// basename("/foo/bar.txt") // "bar.txt"
-/// basename("/foo/")        // "foo"
-/// basename("/")            // ""
-/// ```
 pub fn basename(p: []const u8) []const u8 {
     return basenameStyle(Style.native.resolve(), p);
+}
+
+test basename {
+    try testing.expectEqualStrings("bar.txt", basename("/foo/bar.txt"));
+    try testing.expectEqualStrings("foo", basename("/foo/"));
+    try testing.expectEqualStrings("", basename("/"));
 }
 
 /// Returns the directory portion of a path, or `null` for a bare root or filename.
 ///
 /// Returns a slice into the input.
-///
-/// ```zig
-/// dirname("/foo/bar.txt") // "/foo"
-/// dirname("file.txt")     // null
-/// dirname("/")            // null
-/// ```
 pub fn dirname(p: []const u8) ?[]const u8 {
     return dirnameStyle(Style.native.resolve(), p);
+}
+
+test dirname {
+    try testing.expectEqualStrings("/foo", dirname("/foo/bar.txt").?);
+    try testing.expectEqualStrings("", dirname("file.txt") orelse "");
+    try testing.expectEqualStrings("", dirname("/") orelse "");
 }
 
 /// Returns the file extension including the leading dot, or an empty slice.
 ///
 /// A leading-dot filename (e.g. `.gitignore`) is treated as having no extension.
-///
-/// ```zig
-/// extension("archive.tar.gz") // ".gz"
-/// extension(".gitignore")     // ""
-/// ```
 pub fn extension(p: []const u8) []const u8 {
     return extensionStyle(Style.native.resolve(), p);
 }
 
+test extension {
+    try testing.expectEqualStrings(".gz", extension("archive.tar.gz"));
+    try testing.expectEqualStrings("", extension(".gitignore"));
+}
+
 /// Returns the stem of the filename — basename without the last extension.
-///
-/// ```zig
-/// stem("archive.tar.gz") // "archive.tar"
-/// stem(".gitignore")     // ".gitignore"
-/// ```
 pub fn stem(p: []const u8) []const u8 {
     return stemStyle(Style.native.resolve(), p);
+}
+
+test stem {
+    try testing.expectEqualStrings("archive.tar", stem("archive.tar.gz"));
+    try testing.expectEqualStrings(".gitignore", stem(".gitignore"));
 }
 
 /// Returns true if the path is absolute.
 pub fn isAbsolute(p: []const u8) bool {
     return rootInfo(Style.native.resolve(), p).absolute;
 }
+
+test isAbsolute {}
 
 /// Joins path segments with the native separator.
 ///
@@ -504,19 +490,12 @@ pub fn join(alloc: Allocator, parts: []const []const u8) ![]u8 {
 
 /// Normalizes a path: resolves `.` and `..` components, collapses redundant separators.
 ///
-/// Does not access the filesystem — symbolic links and mount points are not resolved.
-/// Caller owns the returned memory.
-///
-/// ```zig
-/// normalize(alloc, "/a/b/../c")  // "/a/c"
-/// normalize(alloc, "foo/./bar")  // "foo/bar"
-/// normalize(alloc, "")           // "."
-/// ```
+/// Does not access the filesystem — symbolic links and mount points are not resolved. Caller owns the returned memory.
 pub fn normalize(alloc: Allocator, p: []const u8) ![]u8 {
     const style = Style.native.resolve();
     const info = rootInfo(style, p);
 
-    var stack: std.ArrayListUnmanaged([]const u8) = .empty;
+    var stack: std.ArrayList([]const u8) = .empty;
     defer stack.deinit(alloc);
 
     var cursor: usize = info.root_len;
@@ -528,6 +507,7 @@ pub fn normalize(alloc: Allocator, p: []const u8) ![]u8 {
         while (end < p.len and !style.isSep(p[end])) end += 1;
 
         const comp = p[cursor..end];
+
         if (mem.eql(u8, comp, ".")) {
             // skip
         } else if (mem.eql(u8, comp, "..")) {
@@ -541,10 +521,11 @@ pub fn normalize(alloc: Allocator, p: []const u8) ![]u8 {
         } else {
             try stack.append(alloc, comp);
         }
+
         cursor = end;
     }
 
-    var buf: std.ArrayListUnmanaged(u8) = .empty;
+    var buf: std.ArrayList(u8) = .empty;
     errdefer buf.deinit(alloc);
 
     // Emit root (normalized: collapse multiple POSIX slashes to one)
@@ -564,11 +545,25 @@ pub fn normalize(alloc: Allocator, p: []const u8) ![]u8 {
     return buf.toOwnedSlice(alloc);
 }
 
+const testing = std.testing;
+
+test normalize {
+    const abc = try normalize(testing.allocator, "/a/b/../c");
+    defer testing.allocator.free(abc);
+    try testing.expectEqualStrings("/a/c", abc);
+
+    const foobar = try normalize(testing.allocator, "foo/./bar");
+    defer testing.allocator.free(foobar);
+    try testing.expectEqualStrings("/foo/bar", foobar);
+
+    const dot = try normalize(testing.allocator, "");
+    defer testing.allocator.free(dot);
+    try testing.expectEqualStrings(".", dot);
+}
+
 /// Resolves `rel` against `base`, returning a normalized absolute or relative path.
 ///
-/// If `rel` is absolute it is returned normalized. Otherwise `rel` is appended to
-/// `base` and the result is normalized.
-/// Caller owns the returned memory.
+/// If `rel` is absolute it is returned normalized. Otherwise `rel` is appended to `base` and the result is normalized. Caller owns the returned memory.
 ///
 /// ```zig
 /// const p = try path.resolve(alloc, "/home/user", "docs/file.txt");
@@ -600,8 +595,6 @@ pub fn relativeTo(alloc: Allocator, base: []const u8, target: []const u8) ![]u8 
     defer result.deinit(alloc);
     return alloc.dupe(u8, result.items());
 }
-
-// ── Internal helpers ──────────────────────────────────────────────────────────
 
 fn rootInfo(style: Style, path: []const u8) RootInfo {
     return switch (style) {
@@ -760,8 +753,6 @@ fn eqlIgnoreCase(left: []const u8, right: []const u8) bool {
 fn isWindowsSep(byte: u8) bool {
     return byte == '/' or byte == '\\';
 }
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
 
 test "sep constants match platform" {
     if (builtin.os.tag == .windows) {
@@ -946,8 +937,4 @@ test "empty and root paths have no filename" {
     try std.testing.expectEqualStrings("", Path.initWithStyle(.posix, "").basename());
     try std.testing.expectEqualStrings("", Path.initWithStyle(.posix, "/").basename());
     try std.testing.expectError(error.NoFileName, Path.initWithStyle(.windows, "C:\\").withSuffix(allocator, ".txt"));
-}
-
-test {
-    std.testing.refAllDecls(@This());
 }

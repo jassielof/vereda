@@ -1,7 +1,6 @@
 //! Filesystem-independent glob pattern matching.
 //!
-//! Matching is purely string-based - no filesystem access occurs.
-//! Patterns are validated on construction; see `Error` for invalid-pattern cases.
+//! Matching is purely string-based - no filesystem access occurs. Patterns are validated on construction; see `Error` for invalid-pattern cases.
 //!
 //! Supported syntax:
 //! - `*`       - any sequence of characters within a single path segment
@@ -18,8 +17,6 @@ const path = @import("path.zig");
 const Allocator = std.mem.Allocator;
 const mem = std.mem;
 
-// -- Options -----------------------------------------------------------------
-
 /// Options controlling glob matching behavior.
 pub const Options = struct {
     /// Path style used when interpreting separator characters.
@@ -27,8 +24,6 @@ pub const Options = struct {
     /// Whether backslash escapes are interpreted.
     escapes: bool = true,
 };
-
-// -- Errors ------------------------------------------------------------------
 
 /// Errors that can occur when compiling a glob pattern.
 pub const Error = error{
@@ -72,8 +67,6 @@ const Compiled = struct {
     template_suffix: []const u8,
 };
 
-// -- Matcher -----------------------------------------------------------------
-
 /// A validated, lightweight glob matcher.
 ///
 /// `Matcher` does not allocate - the pattern string is borrowed.
@@ -95,13 +88,9 @@ pub const Matcher = struct {
     }
 };
 
-// -- Pattern -----------------------------------------------------------------
-
 /// A compiled, heap-allocated glob pattern.
 ///
-/// Use when the pattern string lifetime cannot be guaranteed to outlive the matcher,
-/// or when patterns are constructed at runtime.
-/// Caller must call `deinit` when done.
+/// Use when the pattern string lifetime cannot be guaranteed to outlive the matcher, or when patterns are constructed at runtime. Caller must call `deinit` when done.
 pub const Pattern = struct {
     pattern: []u8,
     compiled: Compiled,
@@ -138,8 +127,6 @@ pub const Pattern = struct {
     }
 };
 
-// -- Convenience functions ----------------------------------------------------
-
 /// Compiles and matches in a single call.
 ///
 /// Returns `error.UnclosedCharacterClass`, `error.EmptyCharacterClass`, or
@@ -163,8 +150,6 @@ pub fn comptimeMatcher(comptime pattern: []const u8, comptime options: Options) 
         }
     }.matches;
 }
-
-// -- Internal ----------------------------------------------------------------
 
 fn compilePattern(pattern: []const u8, options: Options) Error!Compiled {
     try validatePattern(pattern, options.escapes);
@@ -339,6 +324,7 @@ fn detectTemplate(pattern: []const u8, escapes: bool, has_wildcards: bool) struc
     if (pos == pattern.len - 1) {
         return .{ .kind = .prefix, .prefix = pattern[0..pos], .suffix = "" };
     }
+
     return .{ .kind = .prefix_suffix, .prefix = pattern[0..pos], .suffix = pattern[pos + 1 ..] };
 }
 
@@ -378,6 +364,7 @@ fn matchTemplate(compiled: Compiled, candidate: []const u8) ?bool {
             for (middle) |ch| {
                 if (compiled.style.isSep(ch)) return false;
             }
+
             return true;
         },
     };
@@ -507,6 +494,7 @@ fn simdFindChar(haystack: []const u8, needle: u8) ?usize {
     for (haystack[i..], i..) |ch, idx| {
         if (ch == needle) return idx;
     }
+
     return null;
 }
 
@@ -651,6 +639,7 @@ fn findFirstUnescaped(pattern: []const u8, needle: u8, escapes: bool) ?usize {
         }
         if (pattern[i] == needle) return i;
     }
+
     return null;
 }
 
@@ -672,10 +661,9 @@ fn findMatchingBrace(pattern: []const u8, open_index: usize, escapes: bool) ?usi
             if (depth == 0) return i;
         }
     }
+
     return null;
 }
-
-// -- Tests -------------------------------------------------------------------
 
 test "glob wildcards respect separators" {
     try std.testing.expect(try match("src/*.zig", "src/lib.zig", .{ .style = .posix }));
@@ -722,7 +710,14 @@ test "glob nested brace expansion" {
 }
 
 test "glob brace validation" {
-    try std.testing.expectError(error.UnclosedBrace, match("src/{a,b", "src/a", .{ .style = .posix }));
+    try std.testing.expectError(
+        error.UnclosedBrace,
+        match(
+            "src/{a,b",
+            "src/a",
+            .{ .style = .posix },
+        ),
+    );
 }
 
 test "comptime matcher" {
@@ -749,8 +744,4 @@ test "Pattern with options" {
 test "invalid pattern errors" {
     try std.testing.expectError(error.UnclosedCharacterClass, match("[abc", "a", .{}));
     try std.testing.expectError(error.EmptyCharacterClass, match("[]", "a", .{}));
-}
-
-test {
-    std.testing.refAllDecls(@This());
 }

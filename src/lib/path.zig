@@ -528,15 +528,12 @@ pub fn normalize(alloc: Allocator, p: []const u8) ![]u8 {
     var buf: std.ArrayList(u8) = .empty;
     errdefer buf.deinit(alloc);
 
-    // Emit root (normalized: collapse multiple POSIX slashes to one)
-    switch (style) {
-        .posix => if (info.root_len > 0) try buf.append(alloc, '/'),
-        .windows => try buf.appendSlice(alloc, p[0..info.root_len]),
-        .native => unreachable,
-    }
+    try appendNormalizedRoot(alloc, &buf, style, info, p);
 
-    for (stack.items, 0..) |comp, i| {
-        if (i > 0) try buf.append(alloc, style.separator());
+    for (stack.items) |comp| {
+        if (buf.items.len > 0 and !style.isSep(buf.items[buf.items.len - 1])) {
+            try buf.append(alloc, style.separator());
+        }
         try buf.appendSlice(alloc, comp);
     }
 
@@ -550,11 +547,11 @@ const testing = std.testing;
 test normalize {
     const abc = try normalize(testing.allocator, "/a/b/../c");
     defer testing.allocator.free(abc);
-    try testing.expectEqualStrings("/a/c", abc);
+    try testing.expectEqualStrings(if (sep == '\\') "\\a\\c" else "/a/c", abc);
 
     const foobar = try normalize(testing.allocator, "foo/./bar");
     defer testing.allocator.free(foobar);
-    try testing.expectEqualStrings("/foo/bar", foobar);
+    try testing.expectEqualStrings(if (sep == '\\') "foo\\bar" else "foo/bar", foobar);
 
     const dot = try normalize(testing.allocator, "");
     defer testing.allocator.free(dot);
@@ -594,6 +591,43 @@ pub fn relativeTo(alloc: Allocator, base: []const u8, target: []const u8) ![]u8 
     var result = try target_path.relativeTo(alloc, base_path);
     defer result.deinit(alloc);
     return alloc.dupe(u8, result.items());
+}
+
+fn appendNormalizedRoot(alloc: Allocator, buf: *std.ArrayList(u8), style: Style, info: RootInfo, p: []const u8) !void {
+    if (info.root_len == 0) return;
+
+    switch (style) {
+        .posix => {
+            try buf.append(alloc, '/');
+        },
+        .windows => {
+            switch (info.kind) {
+                .none => {},
+                .rooted => {
+                    try buf.append(alloc, '\\');
+                },
+                .drive => {
+                    try buf.appendSlice(alloc, p[0..info.disk_designator_len]);
+                    if (info.root_len > info.disk_designator_len) {
+                        try buf.append(alloc, '\\');
+                    }
+                },
+                .unc => {
+                    var i: usize = 0;
+                    while (i < info.root_len) {
+                        if (isWindowsSep(p[i])) {
+                            try buf.append(alloc, '\\');
+                            while (i < info.root_len and isWindowsSep(p[i])) i += 1;
+                        } else {
+                            try buf.append(alloc, p[i]);
+                            i += 1;
+                        }
+                    }
+                },
+            }
+        },
+        .native => unreachable,
+    }
 }
 
 fn rootInfo(style: Style, path: []const u8) RootInfo {
@@ -805,22 +839,21 @@ test "join no trailing double separator" {
 }
 
 test "normalize dot and dotdot" {
-    if (sep != '/') return error.SkipZigTest;
     const alloc = std.testing.allocator;
     {
         const n = try normalize(alloc, "/a/b/../c");
         defer alloc.free(n);
-        try std.testing.expectEqualStrings("/a/c", n);
+        try std.testing.expectEqualStrings(if (sep == '\\') "\\a\\c" else "/a/c", n);
     }
     {
         const n = try normalize(alloc, "foo/./bar");
         defer alloc.free(n);
-        try std.testing.expectEqualStrings("foo/bar", n);
+        try std.testing.expectEqualStrings(if (sep == '\\') "foo\\bar" else "foo/bar", n);
     }
     {
         const n = try normalize(alloc, "/a/b/../../..");
         defer alloc.free(n);
-        try std.testing.expectEqualStrings("/", n);
+        try std.testing.expectEqualStrings(if (sep == '\\') "\\" else "/", n);
     }
     {
         const n = try normalize(alloc, "");
@@ -830,16 +863,30 @@ test "normalize dot and dotdot" {
     {
         const n = try normalize(alloc, "../../foo");
         defer alloc.free(n);
-        try std.testing.expectEqualStrings("../../foo", n);
+        try std.testing.expectEqualStrings(if (sep == '\\') "..\\..\\foo" else "../../foo", n);
     }
 }
 
 test "normalize collapses multiple slashes" {
-    if (sep != '/') return error.SkipZigTest;
     const alloc = std.testing.allocator;
     const n = try normalize(alloc, "//a//b");
     defer alloc.free(n);
-    try std.testing.expectEqualStrings("/a/b", n);
+    try std.testing.expectEqualStrings(if (sep == '\\') "\\a\\b" else "/a/b", n);
+}
+
+test "normalize windows drive paths" {
+    if (sep != '\\') return error.SkipZigTest;
+    const alloc = std.testing.allocator;
+    {
+        const n = try normalize(alloc, "C:/a/b/../c");
+        defer alloc.free(n);
+        try std.testing.expectEqualStrings("C:\\a\\c", n);
+    }
+    {
+        const n = try normalize(alloc, "C:\\Users\\..\\Jassiel");
+        defer alloc.free(n);
+        try std.testing.expectEqualStrings("C:\\Jassiel", n);
+    }
 }
 
 test "resolve relative to base" {

@@ -1,4 +1,5 @@
 const std = @import("std");
+const lizzy = @import("lizzy");
 
 pub fn build(b: *std.Build) void {
     const mod_name = "vereda";
@@ -61,7 +62,10 @@ pub fn build(b: *std.Build) void {
     const run_integration_tests = b.addRunArtifact(integration_tests);
     tests_step.dependOn(&run_integration_tests.step);
 
-    const lint_step = b.step("check", "Run code quality checks");
+    const check_step = b.step("check", "Run code quality checks");
+
+    const lizzy_step = lizzy.addStepWithBuildOptions(b, .{});
+    check_step.dependOn(lizzy_step);
 
     const fmt = b.addFmt(.{
         .check = true,
@@ -69,5 +73,5 @@ pub fn build(b: *std.Build) void {
             "src/",
         },
     });
-    lint_step.dependOn(&fmt.step);
+    check_step.dependOn(&fmt.step);
 }

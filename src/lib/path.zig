@@ -488,6 +488,31 @@ pub fn join(alloc: Allocator, parts: []const []const u8) ![]u8 {
     return buf.toOwnedSlice(alloc);
 }
 
+/// Returns a copy of `p` with `\` replaced by `/`.
+///
+/// Does not resolve `.`, `..`, or access the filesystem. Useful for displaying paths in
+/// POSIX form (for example Zig `@import` paths in diagnostics). Caller owns the returned memory.
+pub fn toPosixSeparators(alloc: Allocator, p: []const u8) ![]u8 {
+    if (mem.indexOfScalar(u8, p, '\\') == null) return try alloc.dupe(u8, p);
+
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(alloc);
+    for (p) |c| {
+        try out.append(alloc, if (c == '\\') '/' else c);
+    }
+    return try out.toOwnedSlice(alloc);
+}
+
+test toPosixSeparators {
+    const got = try toPosixSeparators(testing.allocator, "src\\lib\\root.zig");
+    defer testing.allocator.free(got);
+    try testing.expectEqualStrings("src/lib/root.zig", got);
+
+    const unchanged = try toPosixSeparators(testing.allocator, "src/lib/root.zig");
+    defer testing.allocator.free(unchanged);
+    try testing.expectEqualStrings("src/lib/root.zig", unchanged);
+}
+
 /// Normalizes a path: resolves `.` and `..` components, collapses redundant separators.
 ///
 /// Does not access the filesystem — symbolic links and mount points are not resolved. Caller owns the returned memory.

@@ -1,5 +1,4 @@
-//! Integration tests for `fs` — exercises real filesystem operations via
-//! `std.testing.tmpDir`.
+//! Integration tests for `fs` — exercises real filesystem operations via `std.testing.tmpDir`.
 
 const std = @import("std");
 const fs = @import("vereda").fs;

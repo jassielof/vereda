@@ -299,6 +299,7 @@ fn builtinPathStyle() path.Style {
     return path.Style.native.resolve();
 }
 
+// TODO: This should be removed, I/O should be an interface parameter, as explained in `global_single_threaded`.
 fn defaultIo() Io {
     return Io.Threaded.global_single_threaded.io();
 }

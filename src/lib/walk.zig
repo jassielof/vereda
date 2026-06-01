@@ -420,6 +420,7 @@ fn canPatternMatchNested(pattern: []const u8, style: path.Style) bool {
     return false;
 }
 
+// TODO: Remove default I/O, let it be a dependency injected parameter.
 fn defaultIo() Io {
     return Io.Threaded.global_single_threaded.io();
 }

@@ -3,6 +3,7 @@
 //! No filesystem access. All functions operate on byte slices. Platform separator is handled at comptime via `builtin.os.tag`.
 //!
 //! Two layers are provided:
+//!
 //! - Free functions (`basename`, `join`, `normalize`, …) for simple slice-in / slice-out use.
 //! - `Path` and `PathBuf` structs for richer, object-oriented manipulation.
 

@@ -393,6 +393,7 @@ test "copyTree copies nested files" {
 
 test "file uri round trip" {
     const allocator = std.testing.allocator;
+    // TODO: This shouldn't depend on my personal home directory. Otherwise it would break if the username is different.
     const native_path = if (builtinPathStyle() == .windows) "C:\\Users\\Jassiel\\notes.txt" else "/tmp/notes.txt";
 
     const uri = try toFileUri(allocator, native_path);

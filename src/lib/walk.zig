@@ -82,9 +82,7 @@ const Frame = struct {
 
 /// A lazy, stack-based recursive directory walker.
 ///
-/// Obtain one via `Walker.init` (passing an open `std.fs.Dir`) or the
-/// convenience `walk` free function (passing a path string).
-/// Call `deinit` when finished to release all resources.
+/// Obtain one via `Walker.init` (passing an open `std.fs.Dir`) or the convenience `walk` free function (passing a path string). Call `deinit` when finished to release all resources.
 pub const Walker = struct {
     allocator: Allocator,
     io: Io,

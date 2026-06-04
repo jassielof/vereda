@@ -20,8 +20,6 @@ pub const Error = error{
     HomeDirUnknown,
 };
 
-// ── Public API ────────────────────────────────────────────────────────────────
-
 /// Returns the user's home directory.
 ///
 /// Caller owns the returned memory.
@@ -99,8 +97,6 @@ pub fn runtime(alloc: Allocator) ![]u8 {
     };
 }
 
-// ── Internal helpers ──────────────────────────────────────────────────────────
-
 fn homePosix(alloc: Allocator) ![]u8 {
     return getEnvOwned(alloc, "HOME") catch |err| switch (err) {
         error.EnvironmentVariableMissing => error.HomeDirUnknown,
@@ -150,8 +146,6 @@ fn xdgHomeOrUnknown(
         else => err,
     };
 }
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
 
 test "home returns a non-empty string on supported platforms" {
     const alloc = std.testing.allocator;

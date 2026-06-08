@@ -6,10 +6,11 @@
 
 const std = @import("std");
 const path = @import("path.zig");
-const walk = @import("walk.zig");
 
 const Allocator = std.mem.Allocator;
 const Io = std.Io;
+
+const builtinPathStyle = path.Style.native.resolve();
 
 /// Maximum bytes read by `readFile` when no explicit limit is given (16 MiB).
 pub const default_max_bytes: usize = 16 * 1024 * 1024;
@@ -23,20 +24,19 @@ pub const Error = error{
 /// Returns true if `p` exists (file, directory, symlink — anything accessible).
 ///
 /// Does not follow symlinks: a broken symlink returns `true`.
-pub fn exists(p: []const u8) bool {
-    Io.Dir.cwd().access(defaultIo(), p, .{}) catch return false;
+pub fn exists(io: Io, p: []const u8) bool {
+    Io.Dir.cwd().access(io, p, .{}) catch return false;
     return true;
 }
 
 /// Returns true if `p` exists and is a regular file.
-pub fn isFile(p: []const u8) bool {
-    const st = Io.Dir.cwd().statFile(defaultIo(), p, .{}) catch return false;
+pub fn isFile(io: Io, p: []const u8) bool {
+    const st = Io.Dir.cwd().statFile(io, p, .{}) catch return false;
     return st.kind == .file;
 }
 
 /// Returns true if `p` exists and is a directory.
-pub fn isDir(p: []const u8) bool {
-    const io = defaultIo();
+pub fn isDir(io: Io, p: []const u8) bool {
     var dir = Io.Dir.cwd().openDir(io, p, .{}) catch return false;
     dir.close(io);
     return true;
@@ -45,8 +45,8 @@ pub fn isDir(p: []const u8) bool {
 /// Creates `p` and all parent directories that do not yet exist.
 ///
 /// No-op if `p` already exists as a directory.
-pub fn mkdirAll(p: []const u8) !void {
-    Io.Dir.cwd().createDirPath(defaultIo(), p) catch |err| switch (err) {
+pub fn mkdirAll(io: Io, p: []const u8) !void {
+    Io.Dir.cwd().createDirPath(io, p) catch |err| switch (err) {
         error.PathAlreadyExists => return,
         else => return err,
     };
@@ -55,8 +55,8 @@ pub fn mkdirAll(p: []const u8) !void {
 /// Removes the file at `p`.
 ///
 /// Fails if `p` is a directory; use `removeAll` for directories.
-pub fn remove(p: []const u8) !void {
-    try Io.Dir.cwd().deleteFile(defaultIo(), p);
+pub fn remove(io: Io, p: []const u8) !void {
+    try Io.Dir.cwd().deleteFile(io, p);
 }
 
 /// Recursively removes the directory tree rooted at `p`.
@@ -64,26 +64,25 @@ pub fn remove(p: []const u8) !void {
 /// No-op if `p` does not exist.
 ///
 /// **Windows note:** read-only files may cause failures. A future version will strip read-only attributes before deletion.
-pub fn removeAll(alloc: Allocator, p: []const u8) !void {
+pub fn removeAll(alloc: Allocator, io: Io, p: []const u8) !void {
     _ = alloc;
-    if (!exists(p)) return;
-    try Io.Dir.cwd().deleteTree(defaultIo(), p);
+    if (!exists(io, p)) return;
+    try Io.Dir.cwd().deleteTree(io, p);
 }
 
 /// Copies the file at `src` to `dst`, overwriting `dst` if it exists.
-pub fn copyFile(src: []const u8, dst: []const u8) !void {
+pub fn copyFile(io: Io, src: []const u8, dst: []const u8) !void {
     const cwd = Io.Dir.cwd();
-    try cwd.copyFile(src, cwd, dst, defaultIo(), .{});
+    try cwd.copyFile(src, cwd, dst, io, .{});
 }
 
 /// Recursively copies the directory tree at `src` to `dst`.
 ///
 /// `dst` is created if it does not exist.
-pub fn copyDir(alloc: Allocator, src: []const u8, dst: []const u8) !void {
-    const io = defaultIo();
+pub fn copyDir(alloc: Allocator, io: Io, src: []const u8, dst: []const u8) !void {
     var src_dir = try Io.Dir.cwd().openDir(io, src, .{ .iterate = true });
     defer src_dir.close(io);
-    try mkdirAll(dst);
+    try mkdirAll(io, dst);
     var dst_dir = try Io.Dir.cwd().openDir(io, dst, .{});
     defer dst_dir.close(io);
     try copyTreeIo(alloc, io, src_dir, dst_dir);
@@ -92,8 +91,7 @@ pub fn copyDir(alloc: Allocator, src: []const u8, dst: []const u8) !void {
 /// Moves (renames) `src` to `dst`.
 ///
 /// Attempts an atomic rename first. Falls back to copy-then-delete when the source and destination are on different filesystems (`error.NotSameFileSystem`).
-pub fn move(alloc: Allocator, src: []const u8, dst: []const u8) !void {
-    const io = defaultIo();
+pub fn move(alloc: Allocator, io: Io, src: []const u8, dst: []const u8) !void {
     const cwd = Io.Dir.cwd();
     cwd.rename(src, cwd, dst, io) catch |err| switch (err) {
         error.CrossDevice => try moveAcrossDevices(alloc, io, cwd, src, cwd, dst),
@@ -102,16 +100,15 @@ pub fn move(alloc: Allocator, src: []const u8, dst: []const u8) !void {
 }
 
 /// Returns the size of the file at `p` in bytes.
-pub fn fileSize(p: []const u8) !u64 {
-    const st = try Io.Dir.cwd().statFile(defaultIo(), p, .{});
+pub fn fileSize(io: Io, p: []const u8) !u64 {
+    const st = try Io.Dir.cwd().statFile(io, p, .{});
     return st.size;
 }
 
 /// Returns filesystem metadata for `p`.
 ///
 /// Works for both files and directories.
-pub fn stat(p: []const u8) !Io.File.Stat {
-    const io = defaultIo();
+pub fn stat(io: Io, p: []const u8) !Io.File.Stat {
     if (Io.Dir.cwd().openFile(io, p, .{})) |file| {
         defer file.close(io);
         return file.stat(io);
@@ -125,20 +122,20 @@ pub fn stat(p: []const u8) !Io.File.Stat {
 /// Reads the entire file at `p` into a caller-owned slice.
 ///
 /// Limited to `default_max_bytes` (16 MiB). For larger files use `readFileMax`. Caller must free the returned slice.
-pub fn readFile(alloc: Allocator, p: []const u8) ![]u8 {
-    return readFileMax(alloc, p, default_max_bytes);
+pub fn readFile(alloc: Allocator, io: Io, p: []const u8) ![]u8 {
+    return readFileMax(alloc, io, p, default_max_bytes);
 }
 
 /// Reads the entire file at `p` into a caller-owned slice, up to `max_bytes`.
 ///
 /// Returns `error.FileTooBig` if the file exceeds `max_bytes`. Caller must free the returned slice.
-pub fn readFileMax(alloc: Allocator, p: []const u8, max_bytes: usize) ![]u8 {
-    return Io.Dir.cwd().readFileAlloc(defaultIo(), p, alloc, .limited(max_bytes));
+pub fn readFileMax(alloc: Allocator, io: Io, p: []const u8, max_bytes: usize) ![]u8 {
+    return Io.Dir.cwd().readFileAlloc(io, p, alloc, .limited(max_bytes));
 }
 
 /// Writes `data` to `p`, creating the file or truncating it if it already exists.
-pub fn writeFile(p: []const u8, data: []const u8) !void {
-    try Io.Dir.cwd().writeFile(defaultIo(), .{ .sub_path = p, .data = data });
+pub fn writeFile(io: Io, p: []const u8, data: []const u8) !void {
+    try Io.Dir.cwd().writeFile(io, .{ .sub_path = p, .data = data });
 }
 
 /// Decodes a `file://` URI to a native filesystem path.
@@ -166,7 +163,7 @@ pub fn fromFileUri(alloc: Allocator, uri: []const u8) ![]u8 {
     const decoded_buf = try arena.dupe(u8, raw_path);
     var decoded = std.Uri.percentDecodeInPlace(decoded_buf);
 
-    if (builtinPathStyle() == .windows) {
+    if (builtinPathStyle == .windows) {
         if (decoded.len >= 3 and decoded[0] == '/' and std.ascii.isAlphabetic(decoded[1]) and decoded[2] == ':') {
             decoded = decoded[1..];
         }
@@ -189,12 +186,12 @@ pub fn toFileUri(alloc: Allocator, file_path: []const u8) ![]u8 {
     errdefer buf.deinit(alloc);
 
     try buf.appendSlice(alloc, "file://");
-    if (builtinPathStyle() == .windows) {
+    if (builtinPathStyle == .windows) {
         try buf.append(alloc, '/');
     }
 
     for (file_path) |byte| {
-        const normalized = if (builtinPathStyle() == .windows and byte == '\\') '/' else byte;
+        const normalized = if (builtinPathStyle == .windows and byte == '\\') '/' else byte;
         switch (normalized) {
             'A'...'Z', 'a'...'z', '0'...'9', '-', '.', '_', '~', '/', ':' => try buf.append(alloc, normalized),
             else => {
@@ -208,8 +205,8 @@ pub fn toFileUri(alloc: Allocator, file_path: []const u8) ![]u8 {
 }
 
 /// Recursively copies all entries from `src_dir` into `dst_dir`.
-pub fn copyTree(alloc: Allocator, src_dir: Io.Dir, dst_dir: Io.Dir) !void {
-    return copyTreeIo(alloc, defaultIo(), src_dir, dst_dir);
+pub fn copyTree(alloc: Allocator, io: Io, src_dir: Io.Dir, dst_dir: Io.Dir) !void {
+    return copyTreeIo(alloc, io, src_dir, dst_dir);
 }
 
 fn copyTreeIo(alloc: Allocator, io: Io, src_dir: Io.Dir, dst_dir: Io.Dir) !void {
@@ -295,16 +292,6 @@ fn moveAcrossDevices(
     try src_dir.deleteFile(io, src);
 }
 
-// TODO: There's no need to create a wrapper function, just create an alias to it.
-fn builtinPathStyle() path.Style {
-    return path.Style.native.resolve();
-}
-
-// TODO: This should be removed, I/O should be an interface parameter, as explained in `global_single_threaded`.
-fn defaultIo() Io {
-    return Io.Threaded.global_single_threaded.io();
-}
-
 test "exists isFile isDir on real fs" {
     const io = std.testing.io;
     var sandbox = std.testing.tmpDir(.{});
@@ -343,7 +330,7 @@ test "readFile and writeFile round trip" {
     var dst_dir = try sandbox.dir.openDir(io, "dst", .{});
     defer dst_dir.close(io);
 
-    try copyTree(alloc, src_dir, dst_dir);
+    try copyTree(alloc, io, src_dir, dst_dir);
 
     const copied = try dst_dir.openFile(io, "data.txt", .{});
     defer copied.close(io);
@@ -380,7 +367,7 @@ test "copyTree copies nested files" {
     var dst_dir = try sandbox.dir.openDir(io, "dst", .{});
     defer dst_dir.close(io);
 
-    try copyTree(allocator, src_dir, dst_dir);
+    try copyTree(allocator, io, src_dir, dst_dir);
 
     var copied_dir = try dst_dir.openDir(io, "nested", .{});
     defer copied_dir.close(io);
@@ -394,8 +381,7 @@ test "copyTree copies nested files" {
 
 test "file uri round trip" {
     const allocator = std.testing.allocator;
-    // TODO: This shouldn't depend on my personal home directory. Otherwise it would break if the username is different.
-    const native_path = if (builtinPathStyle() == .windows) "C:\\Users\\Jassiel\\notes.txt" else "/tmp/notes.txt";
+    const native_path = if (builtinPathStyle == .windows) "C:\\notes.txt" else "/tmp/notes.txt";
 
     const uri = try toFileUri(allocator, native_path);
     defer allocator.free(uri);

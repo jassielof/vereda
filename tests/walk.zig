@@ -34,7 +34,7 @@ test "walk yields all files in a tree" {
     var root_buf: [std.fs.max_path_bytes]u8 = undefined;
     const root_path = root_buf[0..try sandbox.dir.realPathFile(io, ".", &root_buf)];
 
-    var walker = try walk_mod.walk(alloc, root_path, .{
+    var walker = try walk_mod.walk(alloc, io, root_path, .{
         .style = .posix,
         .include_dirs = false,
     });
@@ -85,7 +85,7 @@ test "walk max_depth=0 yields only root-level entries" {
     var root_buf: [std.fs.max_path_bytes]u8 = undefined;
     const root_path = root_buf[0..try sandbox.dir.realPathFile(io, ".", &root_buf)];
 
-    var walker = try walk_mod.walk(alloc, root_path, .{
+    var walker = try walk_mod.walk(alloc, io, root_path, .{
         .style = .posix,
         .max_depth = 0,
         .include_dirs = false,
@@ -121,7 +121,7 @@ test "walk glob pattern filters results" {
     var root_buf: [std.fs.max_path_bytes]u8 = undefined;
     const root_path = root_buf[0..try sandbox.dir.realPathFile(io, ".", &root_buf)];
 
-    var walker = try walk_mod.walk(alloc, root_path, .{
+    var walker = try walk_mod.walk(alloc, io, root_path, .{
         .style = .posix,
         .pattern = "*.zig",
         .include_dirs = false,

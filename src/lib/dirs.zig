@@ -1,4 +1,4 @@
-//! Platform-aware resolution of standard user directories.
+//! The dirs namespace offers utilities for platform-aware resolution of standard user directories.
 //!
 //! - On Linux, the XDG Base Directory Specification is followed.
 //! - On macOS, standard Apple directory conventions are used.

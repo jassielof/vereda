@@ -295,6 +295,7 @@ fn moveAcrossDevices(
     try src_dir.deleteFile(io, src);
 }
 
+// TODO: There's no need to create a wrapper function, just create an alias to it.
 fn builtinPathStyle() path.Style {
     return path.Style.native.resolve();
 }

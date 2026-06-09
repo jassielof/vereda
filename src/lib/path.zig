@@ -26,8 +26,7 @@ pub const Style = enum {
     native,
     /// POSIX conventions: `/` as separator, case-sensitive.
     posix,
-    /// Windows conventions: `\` as canonical separator, `/` also accepted on input,
-    /// case-insensitive component comparison.
+    /// Windows conventions: `\` as canonical separator, `/` also accepted on input, case-insensitive component comparison.
     windows,
 
     /// Resolves `.native` to either `.posix` or `.windows` based on `builtin.os.tag`.

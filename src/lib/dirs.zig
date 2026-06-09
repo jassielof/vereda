@@ -29,7 +29,13 @@ pub const Error = error{
 pub fn home(alloc: Allocator) ![]u8 {
     return switch (builtin.os.tag) {
         .windows => homeWindows(alloc),
-        else => homePosix(alloc),
+        .linux,
+        .macos,
+        .freebsd,
+        .openbsd,
+        .netbsd,
+        => homePosix(alloc),
+        else => Error.HomeDirUnknown,
     };
 }
 

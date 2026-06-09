@@ -1,4 +1,4 @@
-//! The Vereda module is a path and filesystem utility library.
+//! The Vereda module offers filesystem navigation utilities.
 const std = @import("std");
 
 pub const dirs = @import("dirs.zig");

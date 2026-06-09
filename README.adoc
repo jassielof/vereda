@@ -1,25 +1,26 @@
 = Vereda
-:doctype: book
-:source-highlighter: rouge
 
-Zig utilities library for path and filesystem manipulation.
+[abstract]
+--
+A Zig library for filesystem navigation -- path manipulation, directory traversal, glob matching, and known-directory resolution.
+--
 
 == Glob matching
 
-Vereda includes a filesystem-independent glob engine in
-src/lib/glob.zig.
+Vereda includes a filesystem-independent glob engine in src/lib/glob.zig.
 
-Supported syntax:
-
+// TODO: Syntax should be documented in the libary documentation.
+.Supported syntax
 * `-` matches any sequence within one path segment
-* `++**++` matches across segment boundaries
+* `**` matches across segment boundaries
 * `?` matches one non-separator character
-* `++[++abc++]++`, `++[++a-z++]++`, `++[++!abc++]++` character classes
+* `[abc]`, `[a-z]`, `[!abc]` character classes
 * escaped metacharacters with backslash
 * brace alternation with safety limits, including nested braces
 
 Example:
 
+// TODO: Move this as a doctest
 [source,zig]
 ----
 const std = @import("std");
@@ -36,6 +37,7 @@ test "glob examples" {
 The recursive walker in src/lib/walk.zig can filter entries by glob
 pattern.
 
+// TODO: Move this as a doctest.
 [source,zig]
 ----
 const std = @import("std");
@@ -68,6 +70,32 @@ nested paths (for example `++*++.zig`).
 [bibliography]
 == References
 
+.Python
+* [[[pathlib.py]]] https://docs.python.org/3/library/pathlib.html
+* [[[shutil.py]]] https://docs.python.org/3/library/shutil.html
+* [[[glob.py]]] https://docs.python.org/3/library/glob.html
+* [[[path.py]]] https://docs.python.org/3/library/os.path.html
+* [[[filecmp.py]]] https://docs.python.org/3/library/filecmp.html
+
+.Go
+* [[[path.go]]] https://pkg.go.dev/path@go1.26.4
+* [[[filepath.go]]] https://pkg.go.dev/path/filepath@go1.26.4
+* [[[os.go]]] https://pkg.go.dev/os@go1.26.4
+* [[[fs.go]]] https://pkg.go.dev/io/fs@go1.26.4
+
+.C#
+* [[[DirectoryInfo.cs]]] https://learn.microsoft.com/en-us/dotnet/api/system.io.directoryinfo?view=net-10.0
+* [[[FileInfo.cs]]] https://learn.microsoft.com/en-us/dotnet/api/system.io.fileinfo?view=net-10.0
+* [[[Path.cs]]] https://learn.microsoft.com/en-us/dotnet/api/system.io.path?view=net-10.0
+* [[[Directory.cs]]] https://learn.microsoft.com/en-us/dotnet/api/system.io.directory?view=net-10.0
+* [[[File.cs]]] https://learn.microsoft.com/en-us/dotnet/api/system.io.file?view=net-10.0
+
+.Rust
+* [[[fs.rs]]] https://doc.rust-lang.org/std/fs/index.html
+* [[[path.rs]]] https://doc.rust-lang.org/std/path/index.html
+* [[[DirEntry.rs]]] https://doc.rust-lang.org/std/fs/struct.DirEntry.html
+* [[[Path.rs]]] https://doc.rust-lang.org/std/path/struct.Path.html
+* [[[PathBuf.rs]]] https://doc.rust-lang.org/std/path/struct.PathBuf.html
 
 [acknowledgments]
 == Acknowledgments and prior art

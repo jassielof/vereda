@@ -1,9 +1,9 @@
 [submodule "references/zlob"]
 	path = references/zlob
 	url = https://github.com/dmtrKovalenko/zlob
-[submodule "modules/xdg"]
-	path = modules/xdg
-	url = https://github.com/jassielof/xdg-zig
 [submodule "references/known-folders-zig"]
 	path = references/known-folders-zig
 	url = https://github.com/ziglibs/known-folders
+[submodule "dependencies/xdg"]
+	path = dependencies/xdg
+	url = https://github.com/jassielof/xdg-zig

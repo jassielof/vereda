@@ -5,7 +5,7 @@
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .xdg = .{
-            .path = "modules/xdg",
+            .path = "dependencies/xdg",
         },
     },
     .paths = .{

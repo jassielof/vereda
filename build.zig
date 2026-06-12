@@ -1,5 +1,4 @@
 const std = @import("std");
-const lizzy = @import("lizzy");
 
 pub fn build(b: *std.Build) void {
     const mod_name = "vereda";

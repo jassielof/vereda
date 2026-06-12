@@ -6,6 +6,11 @@
 //!
 //! Cycle detection for symlinks is performed via realpath when `follow_symlinks`
 //! is enabled.
+//!
+//! Set `Options.pattern` to restrict yielded entries to paths matching a glob.
+//! Matched paths are relative to the walk root (for example `"src/nested/main.zig"`
+//! when walking `"."`). Directories are still descended even when they do not match,
+//! so nested files under non-matching folders can be found.
 
 const std = @import("std");
 const glob_mod = @import("glob.zig");
@@ -319,8 +324,6 @@ pub const Walker = struct {
     }
 };
 
-// ── Free functions ────────────────────────────────────────────────────────────
-
 /// Creates a `Walker` rooted at the directory at `root_path`.
 ///
 /// The walker takes ownership of the opened directory and closes it on `deinit`.
@@ -330,6 +333,23 @@ pub fn walk(alloc: Allocator, io: Io, root_path: []const u8, options: Options) !
     var root_dir = try Io.Dir.cwd().openDir(io, root_path, .{ .iterate = true });
     errdefer root_dir.close(io);
     return Walker.initOwned(alloc, io, root_dir, options);
+}
+
+test walk {
+    var walker = try walk(
+        std.testing.allocator,
+        std.testing.io,
+        ".",
+        .{
+            .pattern = "*.zig",
+            .include_dirs = false,
+        },
+    );
+    defer walker.deinit();
+
+    while (try walker.next()) |entry| {
+        _ = entry.path;
+    }
 }
 
 /// Creates a `Walker` that yields only entries matching `pattern`.
@@ -415,6 +435,53 @@ fn canPatternMatchNested(pattern: []const u8, style: path.Style) bool {
     }
 
     return false;
+}
+
+test "walk with glob pattern filter from documentation" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var sandbox = std.testing.tmpDir(.{});
+    defer sandbox.cleanup();
+
+    try sandbox.dir.createDir(io, "src", .default_dir);
+    {
+        var src_dir = try sandbox.dir.openDir(io, "src", .{});
+        defer src_dir.close(io);
+        try src_dir.createDir(io, "nested", .default_dir);
+
+        var nested = try src_dir.openDir(io, "nested", .{});
+        defer nested.close(io);
+        const f1 = try nested.createFile(io, "main.zig", .{});
+        f1.close(io);
+        const f2 = try nested.createFile(io, "build.zon", .{});
+        f2.close(io);
+        const f3 = try nested.createFile(io, "readme.txt", .{});
+        f3.close(io);
+    }
+
+    var matcher = try glob_mod.Pattern.compileWithOptions(allocator, "src/**/{*.zig,*.zon}", .{ .style = .posix });
+    defer matcher.deinit(allocator);
+    try std.testing.expect(matcher.match("src/nested/main.zig"));
+    try std.testing.expect(matcher.match("src/nested/build.zon"));
+    try std.testing.expect(!matcher.match("src/nested/readme.txt"));
+
+    var iter_root = try sandbox.dir.openDir(io, ".", .{ .iterate = true });
+    defer iter_root.close(io);
+
+    var walker = try Walker.init(allocator, io, iter_root, .{
+        .style = .posix,
+        .pattern = "src/**/{*.zig,*.zon}",
+        .include_dirs = false,
+    });
+    defer walker.deinit();
+
+    var count: usize = 0;
+    while (try walker.next()) |entry| {
+        count += 1;
+        try std.testing.expect(entry.path.len > 0);
+    }
+    try std.testing.expectEqual(@as(usize, 2), count);
 }
 
 test "walker filters extension depth and hidden entries" {

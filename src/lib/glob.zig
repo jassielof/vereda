@@ -9,7 +9,21 @@
 //! - `[abc]`   - character class: matches any listed character
 //! - `[a-z]`   - character class with range
 //! - `[!abc]`  - negated character class
+//! - `{a,b,c}` - brace alternation (comma-separated alternatives)
 //! - `\x`     - escape metacharacter `x` (when `Options.escapes = true`)
+//!
+//! ## Examples
+//!
+//! ```zig
+//! const std = @import("std");
+//! const vereda = @import("vereda");
+//!
+//! try std.testing.expect(try vereda.glob.match("src/*.zig", "src/main.zig", .{}));
+//! try std.testing.expect(try vereda.glob.match("src/*.{zig,zon}", "src/build.zon", .{}));
+//! try std.testing.expect(try vereda.glob.match("src/**/{*.zig,*.zon}", "src/nested/foo.zig", .{}));
+//! try std.testing.expect(try vereda.glob.match("file\\*.txt", "file*.txt", .{}));
+//! try std.testing.expect(!(try vereda.glob.match("src/*.zig", "src/nested/main.zig", .{})));
+//! ```
 
 const std = @import("std");
 const path = @import("path.zig");
@@ -663,6 +677,14 @@ fn findMatchingBrace(pattern: []const u8, open_index: usize, escapes: bool) ?usi
     }
 
     return null;
+}
+
+test "glob syntax examples" {
+    try std.testing.expect(try match("src/*.zig", "src/main.zig", .{ .style = .posix }));
+    try std.testing.expect(try match("src/*.{zig,zon}", "src/build.zon", .{ .style = .posix }));
+    try std.testing.expect(try match("src/**/{*.zig,*.zon}", "src/nested/foo.zig", .{ .style = .posix }));
+    try std.testing.expect(try match("file\\*.txt", "file*.txt", .{}));
+    try std.testing.expect(!(try match("src/*.zig", "src/nested/main.zig", .{ .style = .posix })));
 }
 
 test "glob wildcards respect separators" {

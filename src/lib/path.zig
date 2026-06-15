@@ -490,8 +490,7 @@ pub fn join(alloc: Allocator, parts: []const []const u8) ![]u8 {
 
 /// Returns a copy of `p` with `\` replaced by `/`.
 ///
-/// Does not resolve `.`, `..`, or access the filesystem. Useful for displaying paths in
-/// POSIX form (for example Zig `@import` paths in diagnostics). Caller owns the returned memory.
+/// Does not resolve `.`, `..`, or access the filesystem. Useful for displaying paths in POSIX form (for example Zig `@import` paths in diagnostics). Caller owns the returned memory.
 pub fn toPosixSeparators(alloc: Allocator, p: []const u8) ![]u8 {
     if (mem.indexOfScalar(u8, p, '\\') == null) return try alloc.dupe(u8, p);
 

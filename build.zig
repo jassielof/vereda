@@ -1,15 +1,13 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    const mod_name = "vereda";
-
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
     const xdg = b.dependency("xdg", .{}).module("xdg");
 
-    const lib_mod = b.addModule(mod_name, .{
-        .root_source_file = b.path("src/lib/root.zig"),
+    const lib_mod = b.addModule("vereda", .{
+        .root_source_file = b.path("lib/vereda/root.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{.{
@@ -19,7 +17,7 @@ pub fn build(b: *std.Build) void {
     });
 
     const docs_lib = b.addLibrary(.{
-        .name = mod_name,
+        .name = "vereda",
         .root_module = lib_mod,
     });
 
@@ -36,7 +34,7 @@ pub fn build(b: *std.Build) void {
     const tests_step = b.step("test", "Run the test suite");
 
     const unit_tests = b.addTest(.{
-        .name = "Unit",
+        .name = "Vereda",
         .root_module = lib_mod,
     });
 
@@ -66,7 +64,7 @@ pub fn build(b: *std.Build) void {
     const fmt = b.addFmt(.{
         .check = true,
         .paths = &.{
-            "src/",
+            "lib/",
         },
     });
     check_step.dependOn(&fmt.step);

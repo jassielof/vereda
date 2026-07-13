@@ -11,6 +11,6 @@
         "build.zig.zon",
         "lib",
         "LICENSE.txt",
-        "README.md",
+        "README.adoc",
     },
 }
